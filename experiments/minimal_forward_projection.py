@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import jax
 import time
 from functools import partial
+from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.98'
 
@@ -14,7 +15,7 @@ def set_sinogram_parameters():
     num_det_channels = 2000
     return num_views, num_det_rows, num_det_channels
 
-def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles, output_device, worker):
+def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles, output_device, sharded_worker, replicated_worker):
     """
     Batch the views (angles) and voxels/indices, send batches to the GPU to project, and collect the results.
     """
@@ -23,7 +24,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     num_pixels_to_exclude = 1000
 
     indices = indices[:len(indices)-num_pixels_to_exclude]
-    angles = jax.device_put(angles, device=worker)
+    angles = jax.device_put(angles, device=replicated_worker)
 
     # Batch the views and pixels
     num_views = len(angles)
@@ -42,7 +43,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         # Send a batch of views to worker
         view_index_end = view_batch_indices[j+1]
         cur_view_batch = jnp.zeros([view_index_end-view_index_start, sinogram_shape[1], sinogram_shape[2]],
-                                   device=worker)
+                                   device=sharded_worker)
         cur_view_params_batch = angles[view_index_start:view_index_end]
         if j == 0:
             get_memory_stats()
@@ -52,12 +53,14 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         for k, pixel_index_start in enumerate(pixel_batch_indices[:-1]):
             # Send a batch of pixels to worker
             pixel_index_end = pixel_batch_indices[k+1]
-            cur_voxel_batch, cur_index_batch = jax.device_put([voxel_values[pixel_index_start:pixel_index_end],
-                                                              indices[pixel_index_start:pixel_index_end]],
-                                                              worker)
+            cur_voxel_batch = jax.device_put(voxel_values[pixel_index_start:pixel_index_end], sharded_worker)
+            cur_index_batch = jax.device_put(indices[pixel_index_start:pixel_index_end], replicated_worker)
+
             if len(cur_index_batch) < max_pixels_per_batch:
-                cur_voxel_batch = jnp.concatenate([cur_voxel_batch, jnp.zeros([max_pixels_per_batch-len(cur_index_batch), sinogram_shape[1],], device=worker)])
-                cur_index_batch = jnp.concatenate([cur_index_batch, jnp.zeros([max_pixels_per_batch-len(cur_index_batch)], device=worker)])
+                z = jnp.zeros([max_pixels_per_batch-len(cur_index_batch), sinogram_shape[1],], device=sharded_worker)
+                cur_voxel_batch = jnp.concatenate([cur_voxel_batch, z])
+                z = jnp.zeros([max_pixels_per_batch-len(cur_index_batch)], device=replicated_worker)
+                cur_index_batch = jnp.concatenate([cur_index_batch, z])
 
             def forward_project_pixel_batch_local(view, angle):
                 # Add the forward projection to the given existing view
@@ -189,10 +192,27 @@ def main():
 
     output_device = jax.devices('cpu')[0]
     try:
-        worker = jax.devices('gpu')[0]
+
+        # Get available gpu devices
+        devices = np.array(jax.devices('gpu')[:2])
+        print("Available devices:", devices)
+
+        # Create a mesh with named axis 'x'
+        mesh = Mesh(devices, 'x')
+        print("Created Mesh:", mesh)
+
+        # Create PartitionSpec
+        pspec = P(None, 'x')
+        print("Created PartitionSpec:", pspec)
+
+        # Create Shardings and assign as worker
+        sharded_worker = NamedSharding(mesh, pspec)
+        replicated_worker = NamedSharding(mesh, P())
+
         use_gpu = True
     except RuntimeError:
-        worker = jax.devices('cpu')[0]
+        sharded_worker = jax.devices('cpu')[0]
+        replicated_worker = jax.devices('cpu')[0]
         use_gpu = False
 
     # Generate phantom - all zero except a small cube
@@ -214,7 +234,8 @@ def main():
     voxel_values, indices = jax.device_put([voxel_values, indices], output_device)
     t0 = time.time()
     sinogram = sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles,
-                                      output_device=output_device, worker=worker)
+                                      output_device=output_device, sharded_worker=sharded_worker,
+                                      replicated_worker=replicated_worker)
     print('Elapsed time:', time.time() - t0)
 
     # Determine resulting number of views, slices, and channels and image size
