@@ -51,6 +51,11 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
         # TODO: don't shard the voxels
 
+        # TODO: look at set devices and batch sizes for setting the parameters
+
+        # In sparse forward project in the tomography_model.py file on line
+        # first hope that sharding with sinogram_views with minimal changes (line 404)
+
         # Loop over pixel batches
         for k, pixel_index_start in enumerate(pixel_batch_indices[:-1]):
             # Send a batch of pixels to worker
