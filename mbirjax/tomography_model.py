@@ -56,6 +56,7 @@ class TomographyModel(ParameterHandler):
         self.main_device, self.sinogram_device, self.worker = None, None, None
         self.cpus = jax.devices('cpu')
         self.projector_functions = None
+        self.projector_params = None
 
         # The following may be adjusted based on memory in set_devices_and_batch_sizes()
         self.view_batch_size_for_vmap = 512
@@ -281,7 +282,7 @@ class TomographyModel(ParameterHandler):
         self.projector_functions = mbirjax.Projectors(self)
 
     @staticmethod
-    def forward_project_pixel_batch_to_one_view(voxel_values, pixel_indices, view_params, projector_params):
+    def forward_project_pixel_batch_to_one_view(voxel_values, pixel_indices, view_params, projector_params, view):
         """
         Forward project a set of voxels determined by indices into the flattened array of size num_rows x num_cols.
 
@@ -299,7 +300,7 @@ class TomographyModel(ParameterHandler):
             jax array of shape (num_det_rows, num_det_channels)
         """
         warnings.warn('Forward projector not implemented for TomographyModel.')
-        return None
+        return view
 
     @staticmethod
     def back_project_one_view_to_pixel_batch(sinogram_view, pixel_indices, single_view_params, projector_params,
