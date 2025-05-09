@@ -6,8 +6,21 @@ import time
 from functools import partial
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 import json
+import psutil
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.98'
+
+"""
+Forward projection is creating a sinogram, in this case from a phantom.
+
+we want to "scan" and create a sinogram of the shape defined in `set_sinogram_parameters` views*rows*channels using a 
+phantom that is channels*channels*rows
+
+Our phantom (recon) is channels*channels*rows*mem_per_entry gb
+Our sinogram is views*rows*channels*mem_per_entry gb
+
+Its a straight shot from one to the other
+"""
 
 def append_to_json_list_file(path: str, data: dict):
     """
@@ -31,11 +44,11 @@ def set_sinogram_parameters():
     # Specify sinogram info
     num_views = 2000
     num_det_rows = 1500
-    num_det_channels = 2000
+    num_det_channels = 4000
     return num_views, num_det_rows, num_det_channels
 
 def set_batch_parameters():
-    max_views_per_batch = 1500
+    max_views_per_batch = 2000
     max_pixels_per_batch = 8000
     num_pixels_to_exclude = 1000
     return max_views_per_batch, max_pixels_per_batch, num_pixels_to_exclude
@@ -196,7 +209,6 @@ def get_memory_stats(print_results=True, file=None):
         memory_stats['bytes_in_use'] = gpu_stats['bytes_in_use']
         memory_stats['peak_bytes_in_use'] = gpu_stats['peak_bytes_in_use']
         memory_stats['bytes_limit'] = gpu_stats['bytes_limit']
-
         mem_stats.append(gpu_stats)
 
         print(memory_stats['id'], file=file)
@@ -206,6 +218,70 @@ def get_memory_stats(print_results=True, file=None):
             print(f'  {tag}:{extra_space}{cur_value:.3f}GB', file=file)
 
     return mem_stats
+
+
+def set_devices_and_batch_sizes():
+
+    # Get the cpu and any gpus
+    # If no gpu, then use the cpu and return
+    cpus = jax.devices('cpu')
+    gb = 1024 ** 3
+    use_gpu = 'automatic'
+    try:
+        gpus = jax.devices('gpu')
+        gpu_memory_stats = gpus[0].memory_stats()
+        gpu_memory = float(gpu_memory_stats['bytes_limit']) - float(gpu_memory_stats['bytes_in_use'])
+        gpu_memory /= gb
+    except RuntimeError:
+        if use_gpu not in ['automatic', 'none']:
+            raise RuntimeError("'use_gpu' is set to {} but no gpu is available.  Reset to 'automatic' or 'none'.".format(use_gpu))
+        gpus = []
+        gpu_memory = 0
+
+    # Estimate the memory available and required for this problem
+    pid = os.getpid()
+    current_process = psutil.Process(pid)
+    memory_info = current_process.memory_full_info()
+    memory_stats = dict()
+    memory_stats['id'] = 'CPU'
+    memory_stats['peak_bytes_in_use'] = memory_info.rss
+    memory_stats['bytes_in_use'] = memory_info.uss  # This is the 'Unique Set Size' used by the process
+    # Get the virtual memory statistics
+    mem = psutil.virtual_memory()
+    memory_stats['bytes_limit'] = mem.available
+    cpu_memory_stats = memory_stats
+    cpu_memory = float(cpu_memory_stats['bytes_limit']) - float(cpu_memory_stats['bytes_in_use'])
+    cpu_memory /= gb
+
+    num_views, num_det_rows, num_det_channels = set_sinogram_parameters()
+    sinogram_shape = (num_views, num_det_rows, num_det_channels)
+    recon_shape = (num_det_channels, num_det_channels, num_det_rows)
+
+    zero = jnp.zeros(1)
+    bits_per_byte = 8
+    mem_per_entry = float(str(zero.dtype)[5:]) / bits_per_byte / gb  # Parse floatXX to get the number of bits
+    memory_per_sinogram = mem_per_entry * np.prod(sinogram_shape)
+    memory_per_recon = mem_per_entry * np.prod(recon_shape)
+
+    total_memory_required = memory_per_sinogram + memory_per_recon
+    subset_update_memory_required = memory_per_sinogram + memory_per_recon
+
+    # Set the default batch sizes, then adjust as needed and update memory requirements
+    views_per_batch = 256 * len(jax.devices('gpu'))
+    pixels_per_batch = 2048
+    num_slices = max(sinogram_shape[1], recon_shape[2])
+    projection_memory_per_view = pixels_per_batch * num_slices * mem_per_entry
+
+    subset_memory_excess = gpu_memory - subset_update_memory_required
+    subset_views_per_batch = subset_memory_excess // projection_memory_per_view
+    subset_views_per_batch = int(np.clip(subset_views_per_batch, 2, views_per_batch))
+
+    total_memory_excess = cpu_memory - total_memory_required
+    total_views_per_batch = total_memory_excess // projection_memory_per_view
+    total_views_per_batch = int(np.clip(total_views_per_batch, 2, views_per_batch))
+
+    subset_update_memory_required += subset_views_per_batch * projection_memory_per_view
+    total_memory_required += total_views_per_batch * projection_memory_per_view
 
 
 
@@ -232,9 +308,7 @@ def main():
         use_gpu = True
     except RuntimeError:
         raise RuntimeError("GPU failed")
-        sharded_worker = jax.devices('cpu')[0]
-        replicated_worker = jax.devices('cpu')[0]
-        use_gpu = False
+
 
     # Generate phantom - all zero except a small cube
     recon_shape = (num_det_channels, num_det_channels, num_det_rows)
@@ -255,7 +329,8 @@ def main():
     voxel_values, indices = jax.device_put([voxel_values, indices], output_device)
     t0 = time.time()
     sinogram = sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles,
-                                      output_device=output_device, sharded_worker=sharded_worker,
+                                      output_device=output_device,
+                                      sharded_worker=sharded_worker,
                                       replicated_worker=replicated_worker)
     print('Elapsed time:', time.time() - t0)
 
@@ -292,3 +367,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # set_devices_and_batch_sizes()
