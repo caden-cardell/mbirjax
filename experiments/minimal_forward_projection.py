@@ -21,9 +21,6 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     Batch the views (angles) and voxels/indices, send batches to the GPU to project, and collect the results.
     """
 
-    # force single batch
-    max_views_per_batch = sinogram_shape[0]
-    max_pixels_per_batch = recon_shape[0] * recon_shape[1]
     num_pixels_to_exclude = 0
 
     indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
@@ -33,21 +30,11 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     jax.debug.visualize_array_sharding(angles)
     print("\n")
 
-    # Batch the views and pixels
-    num_views = len(angles)
-    view_batch_indices = jnp.arange(num_views, step=max_views_per_batch)
-    view_batch_indices = jnp.concatenate([view_batch_indices, num_views * jnp.ones(1, dtype=int)]) # append arrays length to end for final index
-
-    # Create the output sinogram
-    sinogram = []
-
     # Send a batch of views to worker
-    cur_view_batch = jnp.zeros(sinogram_shape, device=sharded_worker)
-    cur_view_params_batch = angles
+    views = jnp.zeros(sinogram_shape, device=sharded_worker)
 
     # if j == 0:
     #     get_memory_stats()
-    # print('Starting view block {} of {}.'.format(j+1, view_batch_indices.shape[0]-1))
 
     # Loop over pixel batches
     voxel_values = jax.device_put(voxel_values, replicated_worker)
@@ -66,10 +53,9 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         return forward_project_pixel_batch_to_one_view(voxel_values, indices, angle, view, sinogram_shape, recon_shape)
 
     view_map = jax.vmap(forward_project_pixel_batch_local)
-    cur_view_batch = view_map(cur_view_batch, cur_view_params_batch)
+    cur_view_batch = view_map(views, angles)
 
-    sinogram.append(jax.device_put(cur_view_batch, sharded_worker))
-    sinogram = jnp.concatenate(sinogram)
+    sinogram = jax.device_put(cur_view_batch, sharded_worker)
 
     print(f"\nsinogram: {jax.typeof(sinogram)}")
     # jax.debug.visualize_array_sharding(sinogram[0])
