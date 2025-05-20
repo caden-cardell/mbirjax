@@ -49,8 +49,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     for j, view_index_start in enumerate(view_batch_indices[:-1]):
         # Send a batch of views to worker
         view_index_end = view_batch_indices[j+1]
-        cur_view_batch = jnp.zeros([view_index_end-view_index_start, sinogram_shape[1], sinogram_shape[2]],
-                                   device=sharded_worker)
+        cur_view_batch = jnp.zeros([view_index_end-view_index_start, sinogram_shape[1], sinogram_shape[2]], device=sharded_worker)
         cur_view_params_batch = angles[view_index_start:view_index_end]
         if j == 0:
             get_memory_stats()
@@ -80,6 +79,16 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
                 return forward_project_pixel_batch_to_one_view(cur_voxel_batch, cur_index_batch, angle, view, sinogram_shape, recon_shape)
 
             view_map = jax.vmap(forward_project_pixel_batch_local)
+            # print(jax.make_jaxpr(view_map)(cur_view_batch, cur_view_params_batch))
+            # input('Enter to continue')
+            # a = jax.jit(view_map).lower(cur_view_batch, cur_view_params_batch).compiler_ir('hlo')
+            # with open("outfile.dot", "w") as f:
+            #     f.write(a.as_hlo_dot_graph())
+            # dot outfile.dot  -Tpng > outfile.png
+            # or
+            # dot -Tps outfile.dot -o outfile.ps
+            # ps2pdf outfile.ps
+            # print(jax.jit(view_map).lower(cur_view_batch, cur_view_params_batch).compile().as_text())
             cur_view_batch = view_map(cur_view_batch, cur_view_params_batch)
 
         sinogram.append(jax.device_put(cur_view_batch, sharded_worker))
@@ -199,8 +208,6 @@ def main():
 
     output_device = jax.devices('cpu')[0]
     try:
-        worker = jax.devices('gpu')[0]
-
         # Get available gpu devices and create a mesh
         devices = np.array(jax.devices('gpu')).reshape((-1, 1))
         mesh = Mesh(devices, ('views', 'rows'))
@@ -209,6 +216,7 @@ def main():
 
         use_gpu = True
     except RuntimeError:
+        # this is a GPU test so raise an error if anything fails with the GPU
         raise RuntimeError("GPU failed")
 
     # Generate phantom - all zero except a small cube
