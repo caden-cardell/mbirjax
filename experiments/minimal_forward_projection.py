@@ -5,14 +5,15 @@ import jax.numpy as jnp
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 import time
 from functools import partial
+from pprint import pprint as pp
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.98'
 
 def set_sinogram_parameters():
     # Specify sinogram info
-    num_views = 12
-    num_det_rows = 15
-    num_det_channels = 15
+    num_views = 4
+    num_det_rows = 5
+    num_det_channels = 6
     return num_views, num_det_rows, num_det_channels
 
 def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles, output_device, sharded_worker, replicated_worker):
@@ -27,6 +28,10 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
     indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
     angles = jax.device_put(angles, device=sharded_worker)
+
+    print(f"\nangles: {jax.typeof(angles)}")
+    jax.debug.visualize_array_sharding(angles)
+    print("\n")
 
     # Batch the views and pixels
     num_views = len(angles)
@@ -58,6 +63,14 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
             cur_voxel_batch = jax.device_put(voxel_values[pixel_index_start:pixel_index_end], replicated_worker)
             cur_index_batch = jax.device_put(indices[pixel_index_start:pixel_index_end], replicated_worker)
 
+            print(f"\ncur_voxel_batch: {jax.typeof(cur_voxel_batch)}")
+            jax.debug.visualize_array_sharding(cur_voxel_batch)
+            print("\n")
+
+            print(f"\ncur_index_batch: {jax.typeof(cur_index_batch)}")
+            jax.debug.visualize_array_sharding(cur_index_batch)
+            print("\n")
+
             if len(cur_index_batch) < max_pixels_per_batch:
                 cur_voxel_batch = jnp.concatenate([cur_voxel_batch, jnp.zeros([max_pixels_per_batch-len(cur_index_batch), sinogram_shape[1],], device=replicated_worker)])
                 cur_index_batch = jnp.concatenate([cur_index_batch, jnp.zeros([max_pixels_per_batch-len(cur_index_batch)], device=replicated_worker)])
@@ -71,6 +84,12 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
         sinogram.append(jax.device_put(cur_view_batch, sharded_worker))
     sinogram = jnp.concatenate(sinogram)
+
+    print(f"\nsinogram: {jax.typeof(sinogram)}")
+    # jax.debug.visualize_array_sharding(sinogram[0])
+    pp(sinogram.addressable_shards)
+    print("\n")
+
     return sinogram
 
 
@@ -197,8 +216,8 @@ def main():
     num_recon_rows, num_recon_cols, num_recon_slices = recon_shape[:3]
     with jax.default_device(output_device):
         phantom = jnp.zeros(recon_shape)  #mbirjax.gen_cube_phantom(recon_shape)
-        i, j, k = recon_shape[0]//3, recon_shape[1]//2, recon_shape[2]//2
-        phantom = phantom.at[i:i+5, j:j+5, k:k+5].set(1.0)
+        i, j, k = recon_shape[0]//2, recon_shape[1]//2, recon_shape[2]//2
+        phantom = phantom.at[i:i+1, j:j+1, k:k+1].set(1.0)
 
         # Generate indices of pixels and sinogram data
         # Determine the 2D indices within the RoR
@@ -209,6 +228,15 @@ def main():
 
     print('Starting forward projection')
     voxel_values, indices = jax.device_put([voxel_values, indices], output_device)
+
+    print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
+    jax.debug.visualize_array_sharding(voxel_values)
+    print("\n")
+
+    print(f"\nindices: {jax.typeof(indices)}")
+    jax.debug.visualize_array_sharding(indices)
+    print("\n")
+
     t0 = time.time()
     sinogram = sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles,
                                       output_device=output_device,
