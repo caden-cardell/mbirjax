@@ -23,6 +23,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
     num_pixels_to_exclude = 0
     debug = True
+    verbose = True
 
     indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
     angles = jax.device_put(angles, device=sharded_worker)
@@ -36,14 +37,17 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
     # Send the views to worker
     views = jnp.zeros(sinogram_shape, device=sharded_worker)
+
+    # FIXME: these arrays should be stored on the cpu 'output_device'
     voxel_values = jax.device_put(voxel_values, replicated_worker)
     indices = jax.device_put(indices, replicated_worker)
 
-    if debug:
+    if verbose:
         print(f"\nviews: {jax.typeof(views)}")
         pp(views.addressable_shards)
         print("\n")
 
+    if debug:
         print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
         jax.debug.visualize_array_sharding(voxel_values)
         print("\n")
@@ -60,7 +64,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     sinogram = view_map(views, angles)
     sinogram = jax.device_put(sinogram, sharded_worker)
 
-    if debug:
+    if verbose:
         print(f"\nsinogram: {jax.typeof(sinogram)}")
         pp(sinogram.addressable_shards)
         print("\n")
