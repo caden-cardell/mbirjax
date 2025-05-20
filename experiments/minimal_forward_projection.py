@@ -42,15 +42,15 @@ def append_to_json_list_file(path: str, data: dict):
 
 def set_sinogram_parameters():
     # Specify sinogram info
-    num_views = 2000
-    num_det_rows = 1500
-    num_det_channels = 4000
+    num_views = 200
+    num_det_rows = 150
+    num_det_channels = 400
     return num_views, num_det_rows, num_det_channels
 
 def set_batch_parameters():
-    max_views_per_batch = 2000
-    max_pixels_per_batch = 8000
-    num_pixels_to_exclude = 1000
+    max_views_per_batch = 200
+    max_pixels_per_batch = 800
+    num_pixels_to_exclude = 100
     return max_views_per_batch, max_pixels_per_batch, num_pixels_to_exclude
 
 def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles, output_device, sharded_worker, replicated_worker):
@@ -61,6 +61,9 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
     indices = indices[:len(indices)-num_pixels_to_exclude]
     angles = jax.device_put(angles, device=sharded_worker)
+
+    # TODO: print debug
+    jax.debug.visualize_array_sharding(angles)
 
     # Batch the views and pixels
     num_views = len(angles)
