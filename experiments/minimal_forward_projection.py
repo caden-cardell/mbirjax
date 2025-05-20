@@ -44,9 +44,8 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     # Loop over the view batches
     for j, view_index_start in enumerate(view_batch_indices[:-1]):
         # Send a batch of views to worker
-        view_index_end = view_batch_indices[j+1]
-        cur_view_batch = jnp.zeros([view_index_end-view_index_start, sinogram_shape[1], sinogram_shape[2]], device=sharded_worker)
-        cur_view_params_batch = angles[view_index_start:view_index_end]
+        cur_view_batch = jnp.zeros(sinogram_shape, device=sharded_worker)
+        cur_view_params_batch = angles
 
         # if j == 0:
         #     get_memory_stats()
