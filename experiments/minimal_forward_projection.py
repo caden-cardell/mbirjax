@@ -59,24 +59,20 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         for k, pixel_index_start in enumerate(pixel_batch_indices[:-1]):
             # Send a batch of pixels to worker
             pixel_index_end = pixel_batch_indices[k+1]
-            cur_voxel_batch = jax.device_put(voxel_values[pixel_index_start:pixel_index_end], replicated_worker)
-            cur_index_batch = jax.device_put(indices[pixel_index_start:pixel_index_end], replicated_worker)
+            voxel_values = jax.device_put(voxel_values, replicated_worker)
+            indices = jax.device_put(indices, replicated_worker)
 
-            print(f"\ncur_voxel_batch: {jax.typeof(cur_voxel_batch)}")
-            jax.debug.visualize_array_sharding(cur_voxel_batch)
+            print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
+            jax.debug.visualize_array_sharding(voxel_values)
             print("\n")
 
-            print(f"\ncur_index_batch: {jax.typeof(cur_index_batch)}")
-            jax.debug.visualize_array_sharding(cur_index_batch)
+            print(f"\nindices: {jax.typeof(indices)}")
+            jax.debug.visualize_array_sharding(indices)
             print("\n")
-
-            if len(cur_index_batch) < max_pixels_per_batch:
-                cur_voxel_batch = jnp.concatenate([cur_voxel_batch, jnp.zeros([max_pixels_per_batch-len(cur_index_batch), sinogram_shape[1],], device=replicated_worker)])
-                cur_index_batch = jnp.concatenate([cur_index_batch, jnp.zeros([max_pixels_per_batch-len(cur_index_batch)], device=replicated_worker)])
 
             def forward_project_pixel_batch_local(view, angle):
                 # Add the forward projection to the given existing view
-                return forward_project_pixel_batch_to_one_view(cur_voxel_batch, cur_index_batch, angle, view, sinogram_shape, recon_shape)
+                return forward_project_pixel_batch_to_one_view(voxel_values, indices, angle, view, sinogram_shape, recon_shape)
 
             view_map = jax.vmap(forward_project_pixel_batch_local)
             cur_view_batch = view_map(cur_view_batch, cur_view_params_batch)
@@ -163,6 +159,9 @@ def compute_proj_data(pixel_indices, angle, sinogram_shape, recon_shape):
 
 
 def get_memory_stats(print_results=True, file=None):
+
+    return # TODO: remove
+
     # Get all GPU devices
     gpus = [device for device in jax.devices() if 'cpu' not in device.device_kind.lower()]
 
