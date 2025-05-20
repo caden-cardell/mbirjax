@@ -30,13 +30,10 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     jax.debug.visualize_array_sharding(angles)
     print("\n")
 
-    # Send a batch of views to worker
+    # get_memory_stats()
+
+    # Send the views to worker
     views = jnp.zeros(sinogram_shape, device=sharded_worker)
-
-    # if j == 0:
-    #     get_memory_stats()
-
-    # Loop over pixel batches
     voxel_values = jax.device_put(voxel_values, replicated_worker)
     indices = jax.device_put(indices, replicated_worker)
 
@@ -53,12 +50,10 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         return forward_project_pixel_batch_to_one_view(voxel_values, indices, angle, view, sinogram_shape, recon_shape)
 
     view_map = jax.vmap(forward_project_pixel_batch_local)
-    cur_view_batch = view_map(views, angles)
-
-    sinogram = jax.device_put(cur_view_batch, sharded_worker)
+    sinogram = view_map(views, angles)
+    sinogram = jax.device_put(sinogram, sharded_worker)
 
     print(f"\nsinogram: {jax.typeof(sinogram)}")
-    # jax.debug.visualize_array_sharding(sinogram[0])
     pp(sinogram.addressable_shards)
     print("\n")
 
