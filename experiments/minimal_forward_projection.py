@@ -10,20 +10,22 @@ os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.98'
 
 def set_sinogram_parameters():
     # Specify sinogram info
-    num_views = 600
-    num_det_rows = 1500
-    num_det_channels = 2000
+    num_views = 12
+    num_det_rows = 15
+    num_det_channels = 15
     return num_views, num_det_rows, num_det_channels
 
 def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles, output_device, sharded_worker, replicated_worker):
     """
     Batch the views (angles) and voxels/indices, send batches to the GPU to project, and collect the results.
     """
-    max_views_per_batch = 200
-    max_pixels_per_batch = 8000
-    num_pixels_to_exclude = 1000
 
-    indices = indices[:len(indices)-num_pixels_to_exclude]
+    # force single batch
+    max_views_per_batch = sinogram_shape[0]
+    max_pixels_per_batch = recon_shape[0] * recon_shape[1]
+    num_pixels_to_exclude = 0
+
+    indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
     angles = jax.device_put(angles, device=sharded_worker)
 
     # Batch the views and pixels
@@ -62,30 +64,18 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
             def forward_project_pixel_batch_local(view, angle):
                 # Add the forward projection to the given existing view
-                return forward_project_pixel_batch_to_one_view(cur_voxel_batch, cur_index_batch, angle, view,
-                                                               sinogram_shape, recon_shape)
+                return forward_project_pixel_batch_to_one_view(cur_voxel_batch, cur_index_batch, angle, view, sinogram_shape, recon_shape)
 
             view_map = jax.vmap(forward_project_pixel_batch_local)
-            # print(jax.make_jaxpr(view_map)(cur_view_batch, cur_view_params_batch))
-            # input('Enter to continue')
-            # a = jax.jit(view_map).lower(cur_view_batch, cur_view_params_batch).compiler_ir('hlo')
-            # with open("outfile.dot", "w") as f:
-            #     f.write(a.as_hlo_dot_graph())
-            # dot outfile.dot  -Tpng > outfile.png
-            # or
-            # dot -Tps outfile.dot -o outfile.ps
-            # ps2pdf outfile.ps
-            # print(jax.jit(view_map).lower(cur_view_batch, cur_view_params_batch).compile().as_text())
             cur_view_batch = view_map(cur_view_batch, cur_view_params_batch)
 
-        sinogram.append(jax.device_put(cur_view_batch, output_device))
+        sinogram.append(jax.device_put(cur_view_batch, sharded_worker))
     sinogram = jnp.concatenate(sinogram)
     return sinogram
 
 
 @partial(jax.jit, static_argnames=['sinogram_shape', 'recon_shape'], donate_argnames='sinogram_view')
-def forward_project_pixel_batch_to_one_view(voxel_values, pixel_indices, angle, sinogram_view,
-                                            sinogram_shape, recon_shape):
+def forward_project_pixel_batch_to_one_view(voxel_values, pixel_indices, angle, sinogram_view, sinogram_shape, recon_shape):
     """
     Apply a parallel beam transformation to a set of voxel cylinders. These cylinders are assumed to have
     slices aligned with detector rows, so that a parallel beam maps a cylinder slice to a detector row.
