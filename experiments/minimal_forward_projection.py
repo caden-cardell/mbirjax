@@ -36,11 +36,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     # Batch the views and pixels
     num_views = len(angles)
     view_batch_indices = jnp.arange(num_views, step=max_views_per_batch)
-    view_batch_indices = jnp.concatenate([view_batch_indices, num_views * jnp.ones(1, dtype=int)])
-
-    num_pixels = len(indices)
-    pixel_batch_indices = jnp.arange(num_pixels, step=max_pixels_per_batch)
-    pixel_batch_indices = jnp.concatenate([pixel_batch_indices, num_pixels * jnp.ones(1, dtype=int)])
+    view_batch_indices = jnp.concatenate([view_batch_indices, num_views * jnp.ones(1, dtype=int)]) # append arrays length to end for final index
 
     # Create the output sinogram
     sinogram = []
@@ -51,9 +47,10 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         view_index_end = view_batch_indices[j+1]
         cur_view_batch = jnp.zeros([view_index_end-view_index_start, sinogram_shape[1], sinogram_shape[2]], device=sharded_worker)
         cur_view_params_batch = angles[view_index_start:view_index_end]
-        if j == 0:
-            get_memory_stats()
-        print('Starting view block {} of {}.'.format(j+1, view_batch_indices.shape[0]-1))
+
+        # if j == 0:
+        #     get_memory_stats()
+        # print('Starting view block {} of {}.'.format(j+1, view_batch_indices.shape[0]-1))
 
         # Loop over pixel batches
         voxel_values = jax.device_put(voxel_values, replicated_worker)
