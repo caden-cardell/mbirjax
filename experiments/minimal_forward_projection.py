@@ -22,13 +22,15 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     """
 
     num_pixels_to_exclude = 0
+    debug = True
 
     indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
     angles = jax.device_put(angles, device=sharded_worker)
 
-    print(f"\nangles: {jax.typeof(angles)}")
-    jax.debug.visualize_array_sharding(angles)
-    print("\n")
+    if debug:
+        print(f"\nangles: {jax.typeof(angles)}")
+        jax.debug.visualize_array_sharding(angles)
+        print("\n")
 
     # get_memory_stats()
 
@@ -37,13 +39,18 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     voxel_values = jax.device_put(voxel_values, replicated_worker)
     indices = jax.device_put(indices, replicated_worker)
 
-    print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
-    jax.debug.visualize_array_sharding(voxel_values)
-    print("\n")
+    if debug:
+        print(f"\nviews: {jax.typeof(views)}")
+        pp(views.addressable_shards)
+        print("\n")
 
-    print(f"\nindices: {jax.typeof(indices)}")
-    jax.debug.visualize_array_sharding(indices)
-    print("\n")
+        print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
+        jax.debug.visualize_array_sharding(voxel_values)
+        print("\n")
+
+        print(f"\nindices: {jax.typeof(indices)}")
+        jax.debug.visualize_array_sharding(indices)
+        print("\n")
 
     def forward_project_pixel_batch_local(view, angle):
         # Add the forward projection to the given existing view
@@ -53,9 +60,10 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     sinogram = view_map(views, angles)
     sinogram = jax.device_put(sinogram, sharded_worker)
 
-    print(f"\nsinogram: {jax.typeof(sinogram)}")
-    pp(sinogram.addressable_shards)
-    print("\n")
+    if debug:
+        print(f"\nsinogram: {jax.typeof(sinogram)}")
+        pp(sinogram.addressable_shards)
+        print("\n")
 
     return sinogram
 
