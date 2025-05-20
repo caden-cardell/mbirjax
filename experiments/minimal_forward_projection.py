@@ -41,36 +41,34 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     # Create the output sinogram
     sinogram = []
 
-    # Loop over the view batches
-    for j, view_index_start in enumerate(view_batch_indices[:-1]):
-        # Send a batch of views to worker
-        cur_view_batch = jnp.zeros(sinogram_shape, device=sharded_worker)
-        cur_view_params_batch = angles
+    # Send a batch of views to worker
+    cur_view_batch = jnp.zeros(sinogram_shape, device=sharded_worker)
+    cur_view_params_batch = angles
 
-        # if j == 0:
-        #     get_memory_stats()
-        # print('Starting view block {} of {}.'.format(j+1, view_batch_indices.shape[0]-1))
+    # if j == 0:
+    #     get_memory_stats()
+    # print('Starting view block {} of {}.'.format(j+1, view_batch_indices.shape[0]-1))
 
-        # Loop over pixel batches
-        voxel_values = jax.device_put(voxel_values, replicated_worker)
-        indices = jax.device_put(indices, replicated_worker)
+    # Loop over pixel batches
+    voxel_values = jax.device_put(voxel_values, replicated_worker)
+    indices = jax.device_put(indices, replicated_worker)
 
-        print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
-        jax.debug.visualize_array_sharding(voxel_values)
-        print("\n")
+    print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
+    jax.debug.visualize_array_sharding(voxel_values)
+    print("\n")
 
-        print(f"\nindices: {jax.typeof(indices)}")
-        jax.debug.visualize_array_sharding(indices)
-        print("\n")
+    print(f"\nindices: {jax.typeof(indices)}")
+    jax.debug.visualize_array_sharding(indices)
+    print("\n")
 
-        def forward_project_pixel_batch_local(view, angle):
-            # Add the forward projection to the given existing view
-            return forward_project_pixel_batch_to_one_view(voxel_values, indices, angle, view, sinogram_shape, recon_shape)
+    def forward_project_pixel_batch_local(view, angle):
+        # Add the forward projection to the given existing view
+        return forward_project_pixel_batch_to_one_view(voxel_values, indices, angle, view, sinogram_shape, recon_shape)
 
-        view_map = jax.vmap(forward_project_pixel_batch_local)
-        cur_view_batch = view_map(cur_view_batch, cur_view_params_batch)
+    view_map = jax.vmap(forward_project_pixel_batch_local)
+    cur_view_batch = view_map(cur_view_batch, cur_view_params_batch)
 
-        sinogram.append(jax.device_put(cur_view_batch, sharded_worker))
+    sinogram.append(jax.device_put(cur_view_batch, sharded_worker))
     sinogram = jnp.concatenate(sinogram)
 
     print(f"\nsinogram: {jax.typeof(sinogram)}")
