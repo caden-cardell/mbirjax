@@ -11,9 +11,9 @@ os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.98'
 
 def set_sinogram_parameters():
     # Specify sinogram info
-    num_views = 4
+    num_views = 8
     num_det_rows = 5
-    num_det_channels = 6
+    num_det_channels = 3
     return num_views, num_det_rows, num_det_channels
 
 def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles, output_device, sharded_worker, replicated_worker):
@@ -23,7 +23,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
 
     num_pixels_to_exclude = 0
     debug = True
-    verbose = True
+    verbose = False
 
     indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
     angles = jax.device_put(angles, device=sharded_worker)
@@ -38,14 +38,13 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     # Send the views to worker
     views = jnp.zeros(sinogram_shape, device=sharded_worker)
 
-    # FIXME: these arrays should be stored on the cpu 'output_device'
-    voxel_values = jax.device_put(voxel_values, replicated_worker)
-    indices = jax.device_put(indices, replicated_worker)
+    # REMOVES EXPLICIT SHARDING
+    # voxel_values = jax.device_put(voxel_values, replicated_worker)
+    # indices = jax.device_put(indices, replicated_worker)
 
-    if verbose:
-        print(f"\nviews: {jax.typeof(views)}")
-        pp(views.addressable_shards)
-        print("\n")
+    def forward_project_pixel_batch_local(view, angle):
+        # Add the forward projection to the given existing view
+        return forward_project_pixel_batch_to_one_view(voxel_values, indices, angle, view, sinogram_shape, recon_shape)
 
     if debug:
         print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
@@ -56,17 +55,15 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         jax.debug.visualize_array_sharding(indices)
         print("\n")
 
-    def forward_project_pixel_batch_local(view, angle):
-        # Add the forward projection to the given existing view
-        return forward_project_pixel_batch_to_one_view(voxel_values, indices, angle, view, sinogram_shape, recon_shape)
-
     view_map = jax.vmap(forward_project_pixel_batch_local)
     sinogram = view_map(views, angles)
     sinogram = jax.device_put(sinogram, sharded_worker)
 
-    if verbose:
+    if debug:
         print(f"\nsinogram: {jax.typeof(sinogram)}")
-        pp(sinogram.addressable_shards)
+        jax.debug.visualize_sharding((40320, 40320), sinogram.sharding)
+        if verbose:
+            pp(sinogram.addressable_shards)
         print("\n")
 
     return sinogram
@@ -187,6 +184,14 @@ def main():
         sharded_worker = NamedSharding(mesh, P('views'))
         replicated_worker = NamedSharding(mesh, P())
 
+        print(f"\nsharded_worker: ")
+        jax.debug.visualize_sharding((40320, 40320), sharded_worker, use_color=False)
+        print("\n")
+
+        print(f"\nreplicated_worker: ")
+        jax.debug.visualize_sharding((40320, 40320), replicated_worker, use_color=False)
+        print("\n")
+
         use_gpu = True
     except RuntimeError:
         # this is a GPU test so raise an error if anything fails with the GPU
@@ -208,15 +213,16 @@ def main():
         voxel_values = phantom.reshape((-1,) + recon_shape[2:])[indices]
 
     print('Starting forward projection')
-    voxel_values, indices = jax.device_put([voxel_values, indices], output_device)
+    # REMOVES EXPLICIT SHARDING
+    # voxel_values, indices = jax.device_put([voxel_values, indices], output_device)
 
-    print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
-    jax.debug.visualize_array_sharding(voxel_values)
-    print("\n")
-
-    print(f"\nindices: {jax.typeof(indices)}")
-    jax.debug.visualize_array_sharding(indices)
-    print("\n")
+    # print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
+    # jax.debug.visualize_array_sharding(voxel_values)
+    # print("\n")
+    #
+    # print(f"\nindices: {jax.typeof(indices)}")
+    # jax.debug.visualize_array_sharding(indices)
+    # print("\n")
 
     t0 = time.time()
     sinogram = sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles,
