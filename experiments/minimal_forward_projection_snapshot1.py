@@ -9,11 +9,6 @@ from pprint import pprint as pp
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.98'
 
-PRINT_LIVE_ARRAYS = False
-PRINT_MEM_STATS_EACH_LOOP = False
-PRINT_DEBUG = True
-PRINT_VERBOSE = False
-
 def set_sinogram_parameters():
     # Specify sinogram info
     num_views = 2000
@@ -34,12 +29,11 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     num_pixels_to_exclude = 0
 
     indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
-    angles = jax.device_put(angles, device=sharded_worker)
+    angles = jax.device_put(angles, device=replicated_worker)
 
-    if PRINT_DEBUG:
-        print(f"\nangles: {jax.typeof(angles)}")
-        jax.debug.visualize_array_sharding(angles)
-        print("\n")
+    # print(f"\nangles: {jax.typeof(angles)}")
+    # jax.debug.visualize_array_sharding(angles)
+    # print("\n")
 
     # Batch the views and pixels
     num_views = len(angles)
@@ -53,8 +47,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     # Create the output sinogram
     sinogram = []
 
-    if PRINT_LIVE_ARRAYS:
-        [print(arr.shape) for arr in jax.live_arrays(platform="cuda")]
+    [print(arr.shape) for arr in jax.live_arrays(platform="cuda")]
 
     # Loop over the view batches
     for j, view_index_start in enumerate(view_batch_indices[:-1]):
@@ -67,17 +60,6 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
             get_memory_stats()
         print('Starting view block {} of {}.'.format(j+1, view_batch_indices.shape[0]-1))
 
-        if PRINT_DEBUG:
-            print(f"\ncur_view_batch: {jax.typeof(cur_view_batch)}")
-            jax.debug.visualize_sharding((40320, 40320), cur_view_batch.sharding)
-            if PRINT_VERBOSE:
-                pp(cur_view_batch.addressable_shards)
-            print("\n")
-
-            print(f"\ncur_view_params_batch: {jax.typeof(cur_view_params_batch)}")
-            jax.debug.visualize_array_sharding(cur_view_params_batch)
-            print("\n")
-
         # Loop over pixel batches
         for k, pixel_index_start in enumerate(pixel_batch_indices[:-1]):
             # Send a batch of pixels to worker
@@ -85,14 +67,13 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
             cur_voxel_batch = jax.device_put(voxel_values[pixel_index_start:pixel_index_end], replicated_worker)
             cur_index_batch = jax.device_put(indices[pixel_index_start:pixel_index_end], replicated_worker)
 
-            if PRINT_DEBUG and False:
-                print(f"\ncur_voxel_batch: {jax.typeof(cur_voxel_batch)}")
-                jax.debug.visualize_array_sharding(cur_voxel_batch)
-                print("\n")
+            # print(f"\ncur_voxel_batch: {jax.typeof(cur_voxel_batch)}")
+            # jax.debug.visualize_array_sharding(cur_voxel_batch)
+            # print("\n")
 
-                print(f"\ncur_index_batch: {jax.typeof(cur_index_batch)}")
-                jax.debug.visualize_array_sharding(cur_index_batch)
-                print("\n")
+            # print(f"\ncur_index_batch: {jax.typeof(cur_index_batch)}")
+            # jax.debug.visualize_array_sharding(cur_index_batch)
+            # print("\n")
 
             if len(cur_index_batch) < max_pixels_per_batch:
                 cur_voxel_batch = jnp.concatenate([cur_voxel_batch, jnp.zeros([max_pixels_per_batch-len(cur_index_batch), sinogram_shape[1],], device=replicated_worker)])
@@ -103,26 +84,44 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
                 return forward_project_pixel_batch_to_one_view(cur_voxel_batch, cur_index_batch, angle, view, sinogram_shape, recon_shape)
 
             view_map = jax.vmap(forward_project_pixel_batch_local)
+            # print(jax.make_jaxpr(view_map)(cur_view_batch, cur_view_params_batch))
+            # input('Enter to continue')
+            # a = jax.jit(view_map).lower(cur_view_batch, cur_view_params_batch).compiler_ir('hlo')
+            # with open("outfile.dot", "w") as f:
+            #     f.write(a.as_hlo_dot_graph())
+            # dot outfile.dot  -Tpng > outfile.png
+            # or
+            # dot -Tps outfile.dot -o outfile.ps
+            # ps2pdf outfile.ps
+            # print(jax.jit(view_map).lower(cur_view_batch, cur_view_params_batch).compile().as_text())
             cur_view_batch = view_map(cur_view_batch, cur_view_params_batch)
 
-        if PRINT_MEM_STATS_EACH_LOOP:
-            get_memory_stats(print_results=True)
+        get_memory_stats(print_results=True)
 
         sinogram.append(cur_view_batch)
 
-    if PRINT_LIVE_ARRAYS:
-        print("live arrays")
-        [print(arr.shape) for arr in jax.live_arrays(platform="cuda")]
+    # # choose target gpu
+    # gpu_devices = jax.devices("gpu")
+    # target = gpu_devices[0]
+    #
+    # gpu_arrays = jax.live_arrays(platform="cuda")
+    # on_target = [arr for arr in gpu_arrays if target in arr.sharding.device_set]
+    #
+    # total_bytes = 0
+    # for arr in on_target:
+    #     total_bytes += arr.size * arr.dtype.itemsize
+    # print(f"≈ {total_bytes / 1024 ** 2:.1f} MB on GPU")
 
-    # sinogram = jnp.concatenate(sinogram)
-    sinogram = sinogram[0]
+    print("live arrays")
+    [print(arr.shape) for arr in jax.live_arrays(platform="cuda")]
 
-    if PRINT_DEBUG:
-        print(f"\nsinogram: {jax.typeof(sinogram)}")
-        jax.debug.visualize_sharding((40320, 40320), sinogram.sharding)
-        if PRINT_VERBOSE:
-            pp(sinogram.addressable_shards)
-        print("\n")
+    sinogram = jnp.concatenate(sinogram)
+
+
+    # print(f"\nsinogram: {jax.typeof(sinogram)}")
+    # # jax.debug.visualize_array_sharding(sinogram[0])
+    # pp(sinogram.addressable_shards)
+    print("\n")
 
     return sinogram
 
@@ -229,7 +228,6 @@ def main():
     start_angle = 0
     end_angle = jnp.pi
     sinogram_shape = (num_views, num_det_rows, num_det_channels)
-    angles = jnp.linspace(start_angle, end_angle, num_views, endpoint=False)
 
     output_device = jax.devices('cpu')[0]
     try:
@@ -238,15 +236,6 @@ def main():
         mesh = Mesh(devices, ('views', 'rows'))
         sharded_worker = NamedSharding(mesh, P('views'))
         replicated_worker = NamedSharding(mesh, P())
-
-        if PRINT_DEBUG:
-            print(f"\nsharded_worker: ")
-            jax.debug.visualize_sharding((40320, 40320), sharded_worker, use_color=False)
-            print("\n")
-
-            print(f"\nreplicated_worker: ")
-            jax.debug.visualize_sharding((40320, 40320), replicated_worker, use_color=False)
-            print("\n")
 
         use_gpu = True
     except RuntimeError:
@@ -257,6 +246,7 @@ def main():
     recon_shape = (num_det_channels, num_det_channels, num_det_rows)
     num_recon_rows, num_recon_cols, num_recon_slices = recon_shape[:3]
     with jax.default_device(output_device):
+
         phantom = jnp.zeros(recon_shape)  #mbirjax.gen_cube_phantom(recon_shape)
         i, j, k = recon_shape[0]//2, recon_shape[1]//2, recon_shape[2]//2
         phantom = phantom.at[i:i+1, j:j+1, k:k+1].set(1.0)
@@ -271,14 +261,16 @@ def main():
     print('Starting forward projection')
     voxel_values, indices = jax.device_put([voxel_values, indices], output_device)
 
-    if PRINT_DEBUG:
-        print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
-        jax.debug.visualize_array_sharding(voxel_values)
-        print("\n")
+    # print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
+    # jax.debug.visualize_array_sharding(voxel_values)
+    # print("\n")
+    #
+    # print(f"\nindices: {jax.typeof(indices)}")
+    # jax.debug.visualize_array_sharding(indices)
+    # print("\n")
 
-        print(f"\nindices: {jax.typeof(indices)}")
-        jax.debug.visualize_array_sharding(indices)
-        print("\n")
+    # create the angles for the views
+    angles = jnp.linspace(start_angle, end_angle, num_views, endpoint=False)
 
     t0 = time.time()
     sinogram = sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, angles,
