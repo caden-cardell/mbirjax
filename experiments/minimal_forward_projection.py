@@ -11,7 +11,7 @@ os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.98'
 
 PRINT_LIVE_ARRAYS = False
 PRINT_MEM_STATS_EACH_LOOP = False
-PRINT_DEBUG = True
+PRINT_DEBUG = False
 PRINT_VERBOSE = False
 
 def set_sinogram_parameters():
@@ -29,8 +29,8 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
     _, _, num_det_channels = sinogram_shape
 
     # force single batch
-    max_views_per_batch = 200
-    max_pixels_per_batch = int(num_det_channels * num_det_channels // 128)
+    max_views_per_batch = 2000
+    max_pixels_per_batch = 10000 # this is unrelated to partitions (subset of voxels -> voxel cylinders)
     num_pixels_to_exclude = 0
 
     indices = indices[:len(indices)-num_pixels_to_exclude] # QUESTION: why are pixels excluded?
@@ -61,7 +61,7 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         # Send a batch of views to worker
         view_index_end = view_batch_indices[j+1]
         cur_view_batch = jnp.zeros([view_index_end-view_index_start, sinogram_shape[1], sinogram_shape[2]], device=sharded_worker)
-        cur_view_params_batch = angles[view_index_start:view_index_end]   # FIXME: this is sharded differently then the views because the indexes where already sharded
+        cur_view_params_batch = angles[view_index_start:view_index_end]
 
         if j == 0:
             get_memory_stats()
@@ -108,14 +108,12 @@ def sparse_forward_project(voxel_values, indices, sinogram_shape, recon_shape, a
         if PRINT_MEM_STATS_EACH_LOOP:
             get_memory_stats(print_results=True)
 
-        sinogram.append(cur_view_batch)
+        sinogram = cur_view_batch
+        print("YOU SHOULD ONLY SEE THIS ONCE!!!!!")
 
     if PRINT_LIVE_ARRAYS:
         print("live arrays")
         [print(arr.shape) for arr in jax.live_arrays(platform="cuda")]
-
-    # sinogram = jnp.concatenate(sinogram)
-    sinogram = sinogram[0]
 
     if PRINT_DEBUG:
         print(f"\nsinogram: {jax.typeof(sinogram)}")
@@ -264,7 +262,7 @@ def main():
         # Generate indices of pixels and sinogram data
         # Determine the 2D indices within the RoR
         max_index_val = num_recon_rows * num_recon_cols
-        indices = np.arange(max_index_val, dtype=np.int32)
+        indices = np.arange(max_index_val, dtype=np.int32) # this is the "partition"
         indices = jnp.array(indices)
         voxel_values = phantom.reshape((-1,) + recon_shape[2:])[indices]
 
