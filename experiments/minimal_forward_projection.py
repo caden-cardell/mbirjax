@@ -267,7 +267,8 @@ def main():
         voxel_values = phantom.reshape((-1,) + recon_shape[2:])[indices]
 
     print('Starting forward projection')
-    voxel_values, indices = jax.device_put([voxel_values, indices], output_device)
+    voxel_values = jax.device_put(voxel_values, output_device)  # this is the full recon
+    indices = jax.device_put(indices, output_device)  # this is the partition
 
     if PRINT_DEBUG:
         print(f"\nvoxel_values: {jax.typeof(voxel_values)}")
