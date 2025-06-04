@@ -40,16 +40,9 @@ num_det_channels = 128
 start_angle = -(np.pi) * (1/2)
 end_angle = (np.pi) * (1/2)
 
-"""**Data generation:** For demo purposes, we create a phantom and then project it to create a sinogram.
-
-Note:  the sliders on the viewer won't work in notebook form.  For that you'll need to run the python code with an interactive matplotlib backend, typcially using the command line or a development environment like Spyder or Pycharm to invoke python.  
-
-"""
-
 # Initialize sinogram
 sinogram_shape = (num_views, num_det_rows, num_det_channels)
 angles = jnp.linspace(start_angle, end_angle, num_views, endpoint=False)
-
 
 ct_model_for_generation = mbirjax.ParallelBeamModel(sinogram_shape, angles)
 
