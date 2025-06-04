@@ -1324,7 +1324,7 @@ class TomographyModel(ParameterHandler):
             ndarray: A 3D numpy array of shape specified by TomographyModel class parameters.
         """
         recon_shape = self.get_params('recon_shape')
-        phantom = mbirjax.generate_3d_shepp_logan_low_dynamic_range(recon_shape)
+        phantom = mbirjax.generate_3d_shepp_logan_low_dynamic_range(recon_shape, device=self.main_device)
         return phantom
 
     def reshape_recon(self, recon):
