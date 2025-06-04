@@ -23,9 +23,6 @@ Select a GPU as runtime type for best performance.
 # Commented out IPython magic to ensure Python compatibility.
 # %pip install mbirjax
 
-import numpy as np
-import time
-import pprint
 import jax.numpy as jnp
 import mbirjax
 
@@ -33,12 +30,12 @@ import mbirjax
 
 # Set parameters for the problem size - you can vary these, but if you make num_det_rows very small relative to
 # channels, then the generated phantom may not have an interior.
-num_views = 64
-num_det_rows = 40
-num_det_channels = 128
+num_views = 2000
+num_det_rows = 2000
+num_det_channels = 2000
 
-start_angle = -(np.pi) * (1/2)
-end_angle = (np.pi) * (1/2)
+start_angle = -(jnp.pi) * (1/2)
+end_angle = (jnp.pi) * (1/2)
 
 # Initialize sinogram
 sinogram_shape = (num_views, num_det_rows, num_det_channels)
@@ -53,8 +50,9 @@ phantom = ct_model_for_generation.gen_modified_3d_sl_phantom()
 # Generate synthetic sinogram data
 print('Creating sinogram')
 sinogram = ct_model_for_generation.forward_project(phantom)
-sinogram = np.array(sinogram)
+# TODO: put on output device
+# sinogram = np.array(sinogram)
 
 # View sinogram
-title = 'Original sinogram \nUse the sliders to change the view or adjust the intensity range.'
-mbirjax.slice_viewer(sinogram, slice_axis=0, title=title, slice_label='View')
+# title = 'Original sinogram \nUse the sliders to change the view or adjust the intensity range.'
+# mbirjax.slice_viewer(sinogram, slice_axis=0, title=title, slice_label='View')
