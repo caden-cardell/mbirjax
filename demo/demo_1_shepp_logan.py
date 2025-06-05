@@ -36,9 +36,9 @@ geometry_type = 'parallel'  # 'cone' or 'parallel'
 
 # Set parameters for the problem size - you can vary these, but if you make num_det_rows very small relative to
 # channels, then the generated phantom may not have an interior.
-num_views = 2000
-num_det_rows = 2000
-num_det_channels = 2000
+num_views = 1000
+num_det_rows = 1000
+num_det_channels = 1000
 
 # For cone beam geometry, we need to describe the distances source to detector and source to rotation axis.
 # np.Inf is an allowable value, in which case this is essentially parallel beam
