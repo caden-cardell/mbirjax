@@ -451,12 +451,13 @@ def generate_3d_shepp_logan_reference(phantom_shape):
     return image.transpose((1, 0, 2))
 
 
-def generate_3d_shepp_logan_low_dynamic_range(phantom_shape):
+def generate_3d_shepp_logan_low_dynamic_range(phantom_shape, device=None):
     """
     Generates a 3D Shepp-Logan phantom with specified dimensions.
 
     Args:
         phantom_shape (tuple): Phantom shape in (rows, columns, slices).
+        TODO:CADEN document device
 
     Returns:
         ndarray: A 3D numpy array of shape phantom_shape representing the voxel intensities of the phantom.
@@ -465,7 +466,7 @@ def generate_3d_shepp_logan_low_dynamic_range(phantom_shape):
         This function uses a memory-efficient approach to generating large phantoms.
     """
     # Get space for the result and set up the grids for add_ellipsoid
-    phantom = jnp.zeros(phantom_shape)
+    phantom = jnp.zeros(phantom_shape, device=device)
     N, M, P = phantom_shape
     x_locations = jnp.linspace(-1, 1, N)
     y_locations = jnp.linspace(-1, 1, M)
