@@ -74,7 +74,9 @@ class TomographyModel(ParameterHandler):
         sinogram_shape = self.get_params('sinogram_shape')
         num_views, _, _ = sinogram_shape
         self.views_per_batch = num_views
-        self.pixels_per_batch = 1000
+        self.pixels_per_batch = 4000
+        print(f"Pixels per batch: {self.pixels_per_batch}")
+
         return
 
         # Get the cpu and any gpus
