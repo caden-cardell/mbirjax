@@ -159,17 +159,14 @@ class Projectors:
             batch_size = view_batch_size
 
             def back_project_view_batch_helper(local_view_batch, local_view_params_batch, local_pixel_indices):
-                return sparse_back_project_view_batch(local_view_batch, local_view_params_batch, local_pixel_indices,
-                                                      coeff_power, pixels_per_batch=pixel_batch_size)
+                return sparse_back_project_view_batch(local_view_batch, local_view_params_batch, local_pixel_indices, coeff_power, pixels_per_batch=pixel_batch_size)
 
             data_to_batch = (sinogram, cur_view_params_array)  # Apply ensure_tuple
-            summed_output = sum_function_in_batches(back_project_view_batch_helper, data_to_batch, batch_size,
-                                                    pixel_indices)
+            summed_output = sum_function_in_batches(back_project_view_batch_helper, data_to_batch, batch_size, pixel_indices)
             return summed_output
 
         @partial(jax.jit, static_argnames=['coeff_power', 'pixels_per_batch'])
-        def sparse_back_project_view_batch(view_batch, view_params_batch, pixel_indices, coeff_power=1,
-                                           pixels_per_batch=None):
+        def sparse_back_project_view_batch(view_batch, view_params_batch, pixel_indices, coeff_power=1, pixels_per_batch=None):
             """
             This function creates batches of pixels and collects the results to form the full sinogram.
             Also, since the geometry-specific projectors map between a batch of voxel cylinders and a single view,
@@ -209,9 +206,8 @@ class Projectors:
             return new_voxel_values
 
         # Set the compiled projectors
-        projector_functions = (jax.jit(sparse_forward_project_fcn),
-                               jax.jit(sparse_back_project_fcn, static_argnames='coeff_power'))
-        self.sparse_forward_project, self.sparse_back_project = projector_functions
+        self.sparse_forward_project = jax.jit(sparse_forward_project_fcn)
+        self.sparse_back_project = jax.jit(sparse_back_project_fcn, static_argnames='coeff_power')
         self.forward_project_pixel_batch = sparse_forward_project_pixel_batch
         self.back_project_view_batch = sparse_back_project_view_batch
 
