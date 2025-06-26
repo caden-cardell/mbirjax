@@ -228,6 +228,18 @@ class TomographyModel(ParameterHandler):
         # 'sharding':
         if use_gpu == 'sharding':
 
+            print("\n\n SHARDING \n\n")
+
+            # sharding requires the number of views to be a multiple of the number of gpus, pad with zero weighted views
+            num_gpus = len(gpus)
+            num_padding_views = (-num_views) % num_gpus
+            num_views_plus_padding = num_views + num_padding_views
+            print(f"sinogram padded with {num_padding_views} views")
+
+            # FIXME: force weights here?
+
+            self.view_batch_size_for_vmap = num_views_plus_padding
+
             """
             self.main_device, self.sinogram_device, self.worker = cpus[0], gpus[0], gpus[0]
             self.use_gpu = 'sinograms'
@@ -245,27 +257,26 @@ class TomographyModel(ParameterHandler):
             mem_required_for_cpu = recon_reps_for_vcd * mem_per_recon + 2 * mem_per_sinogram  # All recons plus sino and weights
             """
 
-            # sharding requires the number of views to be a multiple of the number of gpus, pad with zero weighted views
-            num_gpus = len(gpus)
-            num_padding_views = (-num_views) % num_gpus
-            num_views_plus_padding = num_views + num_padding_views
-            # TODO: verify the math above is legit
+            # # sharding requires the number of views to be a multiple of the number of gpus, pad with zero weighted views
+            # num_gpus = len(gpus)
+            # num_padding_views = (-num_views) % num_gpus
+            # num_views_plus_padding = num_views + num_padding_views
+            # # TODO: verify the math above is legit
 
             # with sharding we will have a single view batch
-            self.view_batch_size_for_vmap = num_views_plus_padding
 
-            # the sinogram will be spread across multiple GPUs so we need to calculate the amount of memory per GPU
-            mem_per_sinogram = mem_per_entry * num_views_plus_padding * num_det_rows * num_det_channels
-            mem_per_sinogram_per_gpu = mem_per_sinogram / num_gpus
+            # # the sinogram will be spread across multiple GPUs so we need to calculate the amount of memory per GPU
+            # mem_per_sinogram = mem_per_entry * num_views_plus_padding * num_det_rows * num_det_channels
+            # mem_per_sinogram_per_gpu = mem_per_sinogram / num_gpus
+            #
+            # # The memory when all sinograms are on GPUs
+            # mem_for_vcd_sinos_per_gpu = sino_reps_for_vcd * mem_per_sinogram_per_gpu  # in the 2K3 w/ 8 GPU -> 24 GB
+            #
+            # mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_vcd_sinos_per_gpu
+            #
+            # mem_per_voxel_batch = mem_per_cylinder * self.transfer_pixel_batch_size
 
-            # The memory when all sinograms are on GPUs
-            mem_for_vcd_sinos_per_gpu = sino_reps_for_vcd * mem_per_sinogram_per_gpu  # in the 2K3 w/ 8 GPU -> 24 GB
-
-            mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_vcd_sinos_per_gpu
-
-            mem_per_voxel_batch = mem_per_cylinder * self.transfer_pixel_batch_size
-
-            # self.transfer_pixel_batch_size = 1000
+            self.transfer_pixel_batch_size = 1000
 
             devices = np.array(gpus).reshape((-1, 1))
             mesh = Mesh(devices, ('views', 'rows'))
@@ -274,9 +285,12 @@ class TomographyModel(ParameterHandler):
             self.sinogram_device = NamedSharding(mesh, P('views'))
             self.worker = NamedSharding(mesh, P())
 
+            mem_required_for_cpu = 0 # TODO: fix me
+            mem_required_for_gpu = 0
+
 
         # 'full':  Everything on GPU
-        if use_gpu == 'full' or (mem_for_all_vcd < gpu_memory_to_use and use_gpu not in ['none', 'projections', 'sinograms']):
+        elif use_gpu == 'full' or (mem_for_all_vcd < gpu_memory_to_use and use_gpu not in ['none', 'projections', 'sinograms']):
             self.main_device, self.sinogram_device, self.worker = gpus[0], gpus[0], gpus[0]
             self.use_gpu = 'full'
             mem_required_for_gpu = mem_for_all_vcd
