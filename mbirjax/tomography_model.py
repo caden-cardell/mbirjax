@@ -705,25 +705,48 @@ class TomographyModel(ParameterHandler):
             A jax array of shape (len(indices), num_slices)
         """
         # Batch the views and pixels for possible transfer to the gpu
+        transfer_view_batch_size = self.view_batch_size_for_vmap
         transfer_pixel_batch_size = self.transfer_pixel_batch_size
+        num_views = sinogram.shape[0]
 
-        num_pixels = pixel_indices.shape[0]
+        # FIXME: remove view_indices, it isn't used anywhere and uses way more memory the view indexing should be done outside this function
+        if view_indices is not None:
+            view_batch_start_indices = jnp.arange(view_indices, step=transfer_view_batch_size)
+            view_batch_end_indices = jnp.concatenate([view_batch_start_indices[1:], num_views * jnp.ones(1, dtype=int)])
+        else:
+            view_batch_start_indices = jnp.arange(num_views, step=transfer_view_batch_size)
+            view_batch_end_indices = jnp.concatenate([view_batch_start_indices[1:], num_views * jnp.ones(1, dtype=int)])
+
+        recon_shape = self.get_params('recon_shape')
+        num_pixels = len(pixel_indices)
+        num_slices = recon_shape[2]
+
         pixel_batch_start_indices = jnp.arange(num_pixels, step=transfer_pixel_batch_size)
         pixel_batch_end_indices = jnp.concatenate([pixel_batch_start_indices[1:], num_pixels * jnp.ones(1, dtype=int)])
 
-        # Loop over pixel batches
-        voxel_batch_list = []
-        import tqdm
-        for start, end in tqdm.tqdm(zip(pixel_batch_start_indices, pixel_batch_end_indices)):
-            # Back project a batch
-            pixel_index_batch = jax.device_put(pixel_indices[start:end], self.worker)
-            voxel_batch = self.projector_functions.sparse_back_project(sinogram, pixel_index_batch,
-                                                                       coeff_power=coeff_power)
-            voxel_batch = voxel_batch.block_until_ready()
-            voxel_batch_list.append(jax.device_put(voxel_batch, output_device))
-
         # Get the final recon as a jax array
-        recon_at_indices = jnp.concatenate(voxel_batch_list, axis=0)
+        recon_at_indices = jnp.zeros((num_pixels, num_slices), device=output_device)
+        import tqdm
+        for view_index_start, view_index_end in zip(view_batch_start_indices, view_batch_end_indices):
+
+            if view_indices is not None:
+                view_indices_batch = view_indices[view_index_start:view_index_end]
+                view_batch = jax.device_put(sinogram[view_indices_batch], self.sinogram_device)
+            else:
+                view_indices_batch = jnp.arange(view_index_start, view_index_end)
+                view_batch = jax.device_put(sinogram[view_index_start:view_index_end], self.sinogram_device)
+
+            # Loop over pixel batches
+            voxel_batch_list = []
+            for pixel_index_start, pixel_index_end in tqdm.tqdm(zip(pixel_batch_start_indices, pixel_batch_end_indices)):                # Back project a batch
+                pixel_index_batch = jax.device_put(pixel_indices[pixel_index_start:pixel_index_end], self.worker)
+                voxel_batch = self.projector_functions.sparse_back_project(view_batch, pixel_index_batch,
+                                                                           view_indices=view_indices_batch,
+                                                                           coeff_power=coeff_power)
+                voxel_batch = voxel_batch.block_until_ready()
+                voxel_batch_list.append(jax.device_put(voxel_batch, output_device))
+
+            recon_at_indices = recon_at_indices + jnp.concatenate(voxel_batch_list, axis=0)
 
         return recon_at_indices
 
