@@ -133,27 +133,6 @@ class TomographyModel(ParameterHandler):
         Returns:
             Nothing, but instance variables are set to appropriate values.
         """
-
-        try:
-            # Get available gpu devices and create a mesh
-            devices = np.array(jax.devices('gpu')).reshape((-1, 1))
-            mesh = Mesh(devices, ('views', 'rows'))
-
-            self.sinogram_device = NamedSharding(mesh, P('views'))
-            self.worker = NamedSharding(mesh, P())
-
-            self.main_device = jax.devices('cpu')[0]
-        except RuntimeError:
-            # this is a GPU test so raise an error if anything fails with the GPU
-            raise RuntimeError("GPU failed")
-
-        sinogram_shape = self.get_params('sinogram_shape')
-        num_views, _, _ = sinogram_shape
-        self.view_batch_size_for_vmap = num_views
-        self.transfer_pixel_batch_size = 1000
-
-        return
-
         # Get the cpu and any gpus
         cpus = jax.devices('cpu')
         gb = 1024 ** 3
@@ -245,6 +224,56 @@ class TomographyModel(ParameterHandler):
 
         frac_gpu_mem_to_use = 0.9
         gpu_memory_to_use = frac_gpu_mem_to_use * gpu_memory
+
+        # 'sharding':
+        if use_gpu == 'sharding':
+
+            """
+            self.main_device, self.sinogram_device, self.worker = cpus[0], gpus[0], gpus[0]
+            self.use_gpu = 'sinograms'
+            mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_minimal_vcd_sinos_gpu
+            projection_scale = min(1, mem_avail_for_projection / mem_per_projection)
+            max_view_batch_size = int(self.view_batch_size_for_vmap * projection_scale)
+            num_batches = np.ceil(num_views / max_view_batch_size).astype(int)
+            self.view_batch_size_for_vmap = np.ceil(num_views / num_batches).astype(int)
+            
+            # Recalculate the memory per projection with the new batch size
+            mem_per_projection = cone_beam_projection_factor * self.view_batch_size_for_vmap * mem_per_view_with_floor
+            
+            mem_required_for_gpu = max(mem_for_vcd_sinos_gpu,
+                                       mem_for_minimal_vcd_sinos_gpu + mem_per_projection) + mem_per_voxel_batch
+            mem_required_for_cpu = recon_reps_for_vcd * mem_per_recon + 2 * mem_per_sinogram  # All recons plus sino and weights
+            """
+
+            # sharding requires the number of views to be a multiple of the number of gpus, pad with zero weighted views
+            num_gpus = len(gpus)
+            num_padding_views = (-num_views) % num_gpus
+            num_views_plus_padding = num_views + num_padding_views
+            # TODO: verify the math above is legit
+
+            # with sharding we will have a single view batch
+            self.view_batch_size_for_vmap = num_views_plus_padding
+
+            # the sinogram will be spread across multiple GPUs so we need to calculate the amount of memory per GPU
+            mem_per_sinogram = mem_per_entry * num_views_plus_padding * num_det_rows * num_det_channels
+            mem_per_sinogram_per_gpu = mem_per_sinogram / num_gpus
+
+            # The memory when all sinograms are on GPUs
+            mem_for_vcd_sinos_per_gpu = sino_reps_for_vcd * mem_per_sinogram_per_gpu  # in the 2K3 w/ 8 GPU -> 24 GB
+
+            mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_vcd_sinos_per_gpu
+
+            mem_per_voxel_batch = mem_per_cylinder * self.transfer_pixel_batch_size
+
+            # self.transfer_pixel_batch_size = 1000
+
+            devices = np.array(gpus).reshape((-1, 1))
+            mesh = Mesh(devices, ('views', 'rows'))
+
+            self.main_device = cpus[0]
+            self.sinogram_device = NamedSharding(mesh, P('views'))
+            self.worker = NamedSharding(mesh, P())
+
 
         # 'full':  Everything on GPU
         if use_gpu == 'full' or (mem_for_all_vcd < gpu_memory_to_use and use_gpu not in ['none', 'projections', 'sinograms']):
@@ -1014,6 +1043,8 @@ class TomographyModel(ParameterHandler):
         self.logger.info('Estimated CPU memory required = {:.3f} GB, available = {:.3f} GB'.format(self.mem_required_for_cpu, self.cpu_memory))
 
         try:
+
+            # TODO: pad sinogram and weights here
 
             # Check that sinogram and weights are not taking up GPU space
             if isinstance(sinogram, type(jnp.zeros(1))) and list(sinogram.devices())[0] != self.sinogram_device:
