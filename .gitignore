@@ -19,6 +19,8 @@ experiments/sharding/output/*
 *.pdf
 *.pptx
 *.h5
+*.gif
+*.mp4
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
