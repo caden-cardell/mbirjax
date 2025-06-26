@@ -818,11 +818,12 @@ class TomographyModel(ParameterHandler):
         super().verify_valid_params()
         use_gpu = self.get_params('use_gpu')
 
-        if use_gpu not in ['automatic', 'full', 'sinograms', 'projections', 'none']:
+        if use_gpu not in ['automatic', 'full', 'sinograms', 'sharding', 'projections', 'none']:
             error_message = "use_gpu must be one of \n"
             error_message += " 'automatic' (code will try to determine problem size and use gpu appropriately),\n'"
             error_message += " 'full' (use gpu for all calculations),\n"
             error_message += " 'sinograms' (use gpu for projections and all copies of sinogram needed for vcd),\n"
+            error_message += " 'sharding' (use multiple gpus for projections and all copies of sinogram needed for vcd),\n"
             error_message += " 'projections' (use gpu for projections only),\n"
             error_message += " 'none' (do not use gpu at all)."
             raise ValueError(error_message)
@@ -1082,6 +1083,8 @@ class TomographyModel(ParameterHandler):
         try:
 
             # TODO: pad sinogram and weights here
+
+            sinogram, weights = None
 
             # Check that sinogram and weights are not taking up GPU space
             if isinstance(sinogram, type(jnp.zeros(1))) and list(sinogram.devices())[0] != self.sinogram_device:
