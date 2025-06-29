@@ -230,64 +230,37 @@ class TomographyModel(ParameterHandler):
 
             print("\n\n SHARDING \n\n")
 
-            # sharding requires the number of views to be a multiple of the number of gpus, pad with zero weighted views
+            # sharding requires the number of views to be a multiple of the number of gpus
+            # pad with zero weighted views
             num_gpus = len(gpus)
             num_padding_views = (-num_views) % num_gpus
             num_views_plus_padding = num_views + num_padding_views
-            print(f"sinogram padded with {num_padding_views} views")
+            self.view_batch_size_for_vmap = 50  # num_views_plus_padding
 
-            # FIXME: force weights here?
+            # the sinogram will be spread across multiple GPUs so we need to calculate the amount of memory per GPU
+            mem_per_sinogram = num_views_plus_padding * num_det_rows * num_det_channels * mem_per_entry
+            mem_per_sinogram_per_gpu = mem_per_sinogram / num_gpus
 
-            self.view_batch_size_for_vmap = num_views_plus_padding
+            # The memory when all sinograms are on GPUs
+            mem_for_vcd_sinos_per_gpu = sino_reps_for_vcd * mem_per_sinogram_per_gpu  # in the 2K3 w/ 8 GPU -> 24 GB
+            mem_per_projection = cone_beam_projection_factor * mem_per_view_with_floor * self.view_batch_size_for_vmap / num_gpus
 
-            """
-            self.main_device, self.sinogram_device, self.worker = cpus[0], gpus[0], gpus[0]
-            self.use_gpu = 'sinograms'
-            mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_minimal_vcd_sinos_gpu
-            projection_scale = min(1, mem_avail_for_projection / mem_per_projection)
-            max_view_batch_size = int(self.view_batch_size_for_vmap * projection_scale)
-            num_batches = np.ceil(num_views / max_view_batch_size).astype(int)
-            self.view_batch_size_for_vmap = np.ceil(num_views / num_batches).astype(int)
-            
-            # Recalculate the memory per projection with the new batch size
-            mem_per_projection = cone_beam_projection_factor * self.view_batch_size_for_vmap * mem_per_view_with_floor
-            
-            mem_required_for_gpu = max(mem_for_vcd_sinos_gpu,
-                                       mem_for_minimal_vcd_sinos_gpu + mem_per_projection) + mem_per_voxel_batch
+            # use half of the remaining memory for pixel batches?
+            self.transfer_pixel_batch_size = int(((self.gpu_memory - (mem_for_vcd_sinos_per_gpu + mem_per_projection)) / mem_per_cylinder) // 2)
+
+            self.transfer_pixel_batch_size = 4000
+            mem_per_voxel_batch = mem_per_cylinder * self.transfer_pixel_batch_size
+
+            mem_required_for_gpu = mem_for_vcd_sinos_per_gpu + mem_per_projection + mem_per_voxel_batch
             mem_required_for_cpu = recon_reps_for_vcd * mem_per_recon + 2 * mem_per_sinogram  # All recons plus sino and weights
-            """
 
-            # # sharding requires the number of views to be a multiple of the number of gpus, pad with zero weighted views
-            # num_gpus = len(gpus)
-            # num_padding_views = (-num_views) % num_gpus
-            # num_views_plus_padding = num_views + num_padding_views
-            # # TODO: verify the math above is legit
-
-            # with sharding we will have a single view batch
-
-            # # the sinogram will be spread across multiple GPUs so we need to calculate the amount of memory per GPU
-            # mem_per_sinogram = mem_per_entry * num_views_plus_padding * num_det_rows * num_det_channels
-            # mem_per_sinogram_per_gpu = mem_per_sinogram / num_gpus
-            #
-            # # The memory when all sinograms are on GPUs
-            # mem_for_vcd_sinos_per_gpu = sino_reps_for_vcd * mem_per_sinogram_per_gpu  # in the 2K3 w/ 8 GPU -> 24 GB
-            #
-            # mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_vcd_sinos_per_gpu
-            #
-            # mem_per_voxel_batch = mem_per_cylinder * self.transfer_pixel_batch_size
-
-            self.transfer_pixel_batch_size = 1000
-
+            # create devices and named shardings
             devices = np.array(gpus).reshape((-1, 1))
             mesh = Mesh(devices, ('views', 'rows'))
 
             self.main_device = cpus[0]
             self.sinogram_device = NamedSharding(mesh, P('views'))
-            self.worker = NamedSharding(mesh, P())
-
-            mem_required_for_cpu = 0 # TODO: fix me
-            mem_required_for_gpu = 0
-
+            self.worker = None # TODO: it may be better practice explicitly set this once?
 
         # 'full':  Everything on GPU
         elif use_gpu == 'full' or (mem_for_all_vcd < gpu_memory_to_use and use_gpu not in ['none', 'projections', 'sinograms']):
@@ -707,15 +680,31 @@ class TomographyModel(ParameterHandler):
         # Batch the views and pixels for possible transfer to the gpu
         transfer_view_batch_size = self.view_batch_size_for_vmap
         transfer_pixel_batch_size = self.transfer_pixel_batch_size
-        num_views = sinogram.shape[0]
+        num_views, num_rows, num_channels = sinogram.shape
 
-        # FIXME: remove view_indices, it isn't used anywhere and uses way more memory the view indexing should be done outside this function
+        # pixel batches need to be replicated so that all GPU devices have access to the same data
+        sinogram_device_replicated = NamedSharding(self.sinogram_device.mesh, P())
+
+        # if view_indices is None:
+        #     view_indices = jnp.arange(num_views, dtype=int)
+
+        # FIXME: remove view_indices, it isn't used anywhere and uses way more memory.
+        #  The view indexing should be done outside this function if it is needed
+
+        n_gpus = self.sinogram_device.mesh.shape['views']
+        assert num_views % n_gpus == 0, "for simplicity, require num_views divisible by n_gpus"
+        views_per_gpu = num_views // n_gpus
+
+
         if view_indices is not None:
-            view_batch_start_indices = jnp.arange(view_indices, step=transfer_view_batch_size)
+            view_batch_start_indices = jnp.arange(view_indices, step=transfer_view_batch_size, dtype=int)
             view_batch_end_indices = jnp.concatenate([view_batch_start_indices[1:], num_views * jnp.ones(1, dtype=int)])
         else:
-            view_batch_start_indices = jnp.arange(num_views, step=transfer_view_batch_size)
-            view_batch_end_indices = jnp.concatenate([view_batch_start_indices[1:], num_views * jnp.ones(1, dtype=int)])
+            # view_batch_start_indices = jnp.arange(num_views, step=transfer_view_batch_size, dtype=int)
+            # view_batch_end_indices = jnp.concatenate([view_batch_start_indices[1:], num_views * jnp.ones(1, dtype=int)])
+
+            view_batch_start_indices = jnp.arange(views_per_gpu, step=transfer_view_batch_size, dtype=int)
+            view_batch_end_indices = jnp.concatenate([view_batch_start_indices[1:], views_per_gpu * jnp.ones(1, dtype=int)])
 
         recon_shape = self.get_params('recon_shape')
         num_pixels = len(pixel_indices)
@@ -731,15 +720,17 @@ class TomographyModel(ParameterHandler):
 
             if view_indices is not None:
                 view_indices_batch = view_indices[view_index_start:view_index_end]
-                view_batch = jax.device_put(sinogram[view_indices_batch], self.sinogram_device)
+                # view_batch = jax.device_put(sinogram[view_indices_batch], self.sinogram_device)
+                view_batch = sinogram[view_indices_batch]
             else:
-                view_indices_batch = jnp.arange(view_index_start, view_index_end)
-                view_batch = jax.device_put(sinogram[view_index_start:view_index_end], self.sinogram_device)
+                view_indices_batch = jnp.arange(num_views).reshape((n_gpus, views_per_gpu))[:,view_index_start:view_index_end].flatten()
+                # view_batch = jax.device_put(sinogram[view_index_start:view_index_end], self.sinogram_device)
+                view_batch = sinogram.reshape((n_gpus, views_per_gpu, num_rows, num_channels))[:,view_index_start:view_index_end].reshape((n_gpus * transfer_view_batch_size, num_rows, num_channels))
 
             # Loop over pixel batches
             voxel_batch_list = []
             for pixel_index_start, pixel_index_end in tqdm.tqdm(zip(pixel_batch_start_indices, pixel_batch_end_indices)):                # Back project a batch
-                pixel_index_batch = jax.device_put(pixel_indices[pixel_index_start:pixel_index_end], self.worker)
+                pixel_index_batch = jax.device_put(pixel_indices[pixel_index_start:pixel_index_end], sinogram_device_replicated)
                 voxel_batch = self.projector_functions.sparse_back_project(view_batch, pixel_index_batch,
                                                                            view_indices=view_indices_batch,
                                                                            coeff_power=coeff_power)
