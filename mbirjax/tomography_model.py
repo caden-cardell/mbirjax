@@ -248,7 +248,7 @@ class TomographyModel(ParameterHandler):
             # use half of the remaining memory for pixel batches?
             self.transfer_pixel_batch_size = int(((self.gpu_memory - (mem_for_vcd_sinos_per_gpu + mem_per_projection)) / mem_per_cylinder) // 2)
 
-            self.transfer_pixel_batch_size = 4000
+            self.transfer_pixel_batch_size = 2000
             mem_per_voxel_batch = mem_per_cylinder * self.transfer_pixel_batch_size
 
             mem_required_for_gpu = mem_for_vcd_sinos_per_gpu + mem_per_projection + mem_per_voxel_batch
