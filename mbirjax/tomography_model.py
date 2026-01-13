@@ -230,6 +230,10 @@ class TomographyModel(ParameterHandler):
         # 'sinograms': All sinos and projections on GPU.  Adjust projection vmap batch size if needed.
         elif use_gpu == 'sinograms' or (mem_for_minimal_sinos_on_gpu < gpu_memory_to_use and use_gpu not in ['none', 'projections']):
             self.main_device, self.sinogram_device, self.worker = cpus[0], gpus[0], gpus[0]
+
+            # place recons on gpu
+            # self.main_device = gpus[1]
+
             self.use_gpu = 'sinograms'
             mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_minimal_vcd_sinos_gpu
             projection_scale = min(1, mem_avail_for_projection / mem_per_projection)
