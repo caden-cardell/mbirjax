@@ -78,21 +78,12 @@ def recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv
     print("\nGPU STARTING MEMORY STATS:")
     mj.get_memory_stats()
 
-    print("\nSTARTING RECON FIRST PASS:")
-    recon_model.set_params(use_gpu="automatic")
-    recon, _ = recon_model.recon(sinogram,
-                                 weights=weights,
-                                 max_iterations=10,
-                                 stop_threshold_change_pct=0)
-    recon.block_until_ready()
-    del recon
-
-    print("\nSTARTING RECON SECOND PASS:")
+    print("\nSTARTING RECON:")
     recon_model.set_params(use_gpu="automatic")
     time0 = time.time()
     recon, _ = recon_model.recon(sinogram,
                                  weights=weights,
-                                 max_iterations=10,
+                                 max_iterations=16,
                                  stop_threshold_change_pct=0)
     recon.block_until_ready()
     elapsed = time.time() - time0
@@ -123,7 +114,7 @@ if __name__ == "__main__":
         num_det_channels = int(sys.argv[3])
         output_filepath = sys.argv[4]
     except:
-        num_views = 904
+        num_views = 900
         num_det_rows = 1496
         num_det_channels = 1800
         output_filepath = "logs/recon_mem.txt"

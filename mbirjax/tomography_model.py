@@ -232,23 +232,23 @@ class TomographyModel(ParameterHandler):
 
             num_gpus = len(gpus)
             excess_views = num_views % num_gpus
-            if excess_views != 0:
-                raise ValueError(
-                    f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected,"
-                    "but number of views must be an exact multiple of the number of GPUs."
-                    f"Currently there are {num_views} views and {num_gpus} detected GPUs, so there are {excess_views} "
-                    f"excess views. To disable sharding, use ct_model.set_params(use_gpu='sinograms').")
+            # if excess_views != 0:
+            #     raise ValueError(
+            #         f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected,"
+            #         "but number of views must be an exact multiple of the number of GPUs."
+            #         f"Currently there are {num_views} views and {num_gpus} detected GPUs, so there are {excess_views} "
+            #         f"excess views. To disable sharding, use ct_model.set_params(use_gpu='sinograms').")
 
             self.use_gpu = 'sharding'
 
             # create devices and named shardings
-            devices = np.array(gpus).reshape((-1, 1))
+            devices = np.array(gpus[1:]).reshape((-1, 1))
             mesh = Mesh(devices, ('views', 'rows'))
 
-            self.main_device = cpus[0]
+            self.main_device = cpus[0] #gpus[0]
             self.sinogram_device = NamedSharding(mesh, P('views'))
             self.replicated_device = NamedSharding(mesh, P())
-            self.worker = gpus[0]
+            self.worker = gpus[1]
 
             # sharding requires a single view batch
             self.view_batch_size_for_vmap = num_views

@@ -843,6 +843,13 @@ class ConeBeamModel(TomographyModel):
             return jax.vmap(convolve_row)(view)
 
         # Apply convolution across the channels of the weighted sinogram per each fixed view & row
+
+        # if sharding leave all views on the sinogram device
+        if self.use_gpu == 'sharding':
+            filtered_sinogram = jax.lax.map(apply_convolution_to_view, weighted_sinogram, batch_size=view_batch_size)
+            filtered_sinogram *= jnp.pi / num_views
+            return filtered_sinogram
+
         num_views = sinogram.shape[0]
         filtered_sino_list = []
         for i in range(0, num_views, view_batch_size):
