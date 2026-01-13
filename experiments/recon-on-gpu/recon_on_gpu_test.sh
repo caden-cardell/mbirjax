@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATA_OUTPUT_FILEPATH="../output/recon.csv"
+DATA_OUTPUT_FILEPATH="recon_time.txt"
 LOG_OUTPUT_FILEPATH="../output/recon.log"
 
 echo "Saving log to $LOG_OUTPUT_FILEPATH"

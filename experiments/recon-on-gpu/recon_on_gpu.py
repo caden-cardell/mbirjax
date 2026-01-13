@@ -114,10 +114,10 @@ if __name__ == "__main__":
         num_det_channels = int(sys.argv[3])
         output_filepath = sys.argv[4]
     except:
-        num_views = 256
+        num_views = 1024
         num_det_rows = 1024
         num_det_channels = 1024
-        output_filepath = "logs/recon_mem.txt"
+        output_filepath = "recon_time.txt"
 
     create_recon_data(num_views, num_det_rows, num_det_channels)
     recon(num_views, num_det_rows, num_det_channels, output_filepath=output_filepath)

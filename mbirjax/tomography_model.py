@@ -232,7 +232,7 @@ class TomographyModel(ParameterHandler):
             self.main_device, self.sinogram_device, self.worker = cpus[0], gpus[0], gpus[0]
 
             # place recons on gpu
-            # self.main_device = gpus[1]
+            self.main_device = gpus[1]
 
             self.use_gpu = 'sinograms'
             mem_avail_for_projection = gpu_memory_to_use - mem_per_voxel_batch - mem_for_minimal_vcd_sinos_gpu
