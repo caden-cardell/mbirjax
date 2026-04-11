@@ -6,6 +6,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=14 --gpus-per-node=2
 #SBATCH --array=0-7
+#SBATCH --output="/home/ncardel/repos/mbirjax/experiments/sharding/logs/slurm-%A_%a.out"
+#SBATCH --error="/home/ncardel/repos/mbirjax/experiments/sharding/logs/slurm-%A_%a.err"
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=ncardel@purdue.edu
 
