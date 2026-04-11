@@ -90,7 +90,7 @@ class ProjectionBase:
             self.skipTest("Unable to test sharding. No GPUs detected.")
 
         self.projection_model.set_params(use_gpu='automatic')
-        if self.projection_model.use_gpu is not 'sharding':
+        if self.projection_model.use_gpu != 'sharding':
             self.skipTest("Unable to test sharding. Multiple GPUs not detected.")
 
         sinogram = self.projection_model.forward_project(self.control_phantom)
@@ -143,7 +143,7 @@ class ProjectionBase:
             self.skipTest("Unable to test sharding. No GPUs detected.")
 
         self.projection_model.set_params(use_gpu='automatic')
-        if self.projection_model.use_gpu is not 'sharding':
+        if self.projection_model.use_gpu != 'sharding':
             self.skipTest("Unable to test sharding. Multiple GPUs not detected.")
 
         recon = self.projection_model.back_project(self.control_sinogram)

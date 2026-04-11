@@ -21,7 +21,10 @@ def create_recon_data(num_views, num_det_rows, num_det_channels):
     output_directory = f"/scratch/gautschi/ncardel/recon_mem"
     h5_path = f"{output_directory}/cone_{num_views}_{num_det_rows}_{num_det_channels}_projection_data.h5"
     if os.path.isfile(h5_path):
+        print(f"{h5_path} already exists for {num_views}, {num_det_rows}, {num_det_channels} data")
         return
+    print(f"creating {num_views}, {num_det_rows}, {num_det_channels} data")
+
 
     start_angle = -np.pi
     end_angle = np.pi
@@ -80,19 +83,10 @@ def recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv
 
     print("\nSTARTING RECON FIRST PASS:")
     recon_model.set_params(use_gpu="automatic")
-    recon, _ = recon_model.recon(sinogram,
-                                 weights=weights,
-                                 max_iterations=10,
-                                 stop_threshold_change_pct=0)
-    recon.block_until_ready()
-    del recon
-
-    print("\nSTARTING RECON SECOND PASS:")
-    recon_model.set_params(use_gpu="automatic")
     time0 = time.time()
     recon, _ = recon_model.recon(sinogram,
                                  weights=weights,
-                                 max_iterations=10,
+                                 max_iterations=15,
                                  stop_threshold_change_pct=0)
     recon.block_until_ready()
     elapsed = time.time() - time0
@@ -102,15 +96,18 @@ def recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv
     print("\nGPU FINAL MEMORY STATS:")
     mem_stats = mj.get_memory_stats()
 
+    num_gpus = 4
+    gpu_col_names = [f'gpu{i}_peak_bytes' for i in range(num_gpus)]
+
     # if the output file doesn't exist then create it
     print("output_filepath:", output_filepath)
     if not os.path.exists(output_filepath):
         with open(output_filepath, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(['num_views', 'num_det_rows', 'num_det_channels', 'transfer_pixel_batch_size', 'gpu0_peak_bytes', 'gpu1_peak_bytes', 'gpu2_peak_bytes', 'gpu3_peak_bytes', 'cpu'])
+            writer.writerow(['num_views', 'num_det_rows', 'num_det_channels', 'elapsed_seconds', 'transfer_pixel_batch_size'] + gpu_col_names)
 
     # append this test data to the output file
-    row = [ num_views, num_det_rows, num_det_channels, recon_model.transfer_pixel_batch_size ] + [ mem_stats[i]['peak_bytes_in_use'] for i in range(len(mem_stats)) ]
+    row = [num_views, num_det_rows, num_det_channels, round(elapsed, 3), recon_model.transfer_pixel_batch_size] + [mem_stats[i]['peak_bytes_in_use'] for i in range(min(num_gpus, len(mem_stats)))]
     with open(output_filepath, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(row)
