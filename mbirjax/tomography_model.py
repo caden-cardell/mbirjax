@@ -678,6 +678,71 @@ class TomographyModel(ParameterHandler):
                                                                              view_indices=view_indices)
         return sinogram_views
 
+    def sparse_forward_project_sharded_v2(self, voxel_values, pixel_indices, output_device=None):
+        """
+        Shard_map-based forward projection. Each device walks its own shard of views serially
+        via jax.lax.scan, so peak memory is one view's intermediates per device instead of all
+        views at once (as happens with the vmap path in sparse_forward_project_sharded).
+        """
+        from jax.experimental.shard_map import shard_map
+
+        sinogram_shape = self.get_params('sinogram_shape')
+        recon_shape = self.get_params('recon_shape')
+        geometry_params = self.get_geometry_parameters()
+
+        ProjectorParams = namedtuple('ProjectorParams', ['sinogram_shape', 'recon_shape', 'geometry_params'])
+        projector_params = ProjectorParams(sinogram_shape, recon_shape, geometry_params)
+
+        view_params_name = self.get_params('view_params_name')
+        view_params_array = self.get_params(view_params_name)
+
+        mesh = self.sinogram_device.mesh
+        fp_one_view = type(self).forward_project_pixel_batch_to_one_view
+
+        # Shard view params along the views mesh axis (cached by device_put).
+        view_params_sharded = jax.device_put(view_params_array, NamedSharding(mesh, P('views')))
+
+        num_views = sinogram_shape[0]
+        sinogram_views = jnp.zeros([num_views, sinogram_shape[1], sinogram_shape[2]],
+                                   device=self.sinogram_device)
+
+        def per_device_fp(voxels, pix_idx, local_vpa, local_ev):
+            def body(carry, pair):
+                vp, existing = pair
+                out = fp_one_view(voxels, pix_idx, vp, projector_params, existing)
+                return carry, out
+            _, out_views = jax.lax.scan(body, None, (local_vpa, local_ev))
+            return out_views
+
+        fp_sharded = shard_map(
+            per_device_fp,
+            mesh=mesh,
+            in_specs=(P(), P(), P('views'), P('views')),
+            out_specs=P('views'),
+            check_rep=False,
+        )
+
+        # Loop over pixel batches, updating the sharded sinogram each iteration.
+        transfer_pixel_batch_size = self.transfer_pixel_batch_size
+        num_pixels = len(pixel_indices)
+        pixel_batch_boundaries = np.arange(start=0, stop=num_pixels, step=transfer_pixel_batch_size)
+        pixel_batch_boundaries = np.append(pixel_batch_boundaries, num_pixels)
+
+        for k, pixel_index_start in enumerate(pixel_batch_boundaries[:-1]):
+            pixel_index_end = pixel_batch_boundaries[k + 1]
+            voxel_batch, pixel_index_batch = jax.device_put(
+                [voxel_values[pixel_index_start:pixel_index_end],
+                 pixel_indices[pixel_index_start:pixel_index_end]],
+                self.replicated_device,
+            )
+            sinogram_views = sinogram_views.block_until_ready()
+            sinogram_views = fp_sharded(voxel_batch, pixel_index_batch,
+                                        view_params_sharded, sinogram_views)
+
+        if output_device is not None:
+            sinogram_views = jax.device_put(sinogram_views, output_device)
+        return sinogram_views
+
 
     def sparse_forward_project(self, voxel_values, pixel_indices, view_indices=None, output_device=None):
         """
@@ -769,6 +834,71 @@ class TomographyModel(ParameterHandler):
             voxel_batch = self.projector_functions.sparse_back_project(sinogram, pixel_index_batch,
                                                                        view_indices=view_indices,
                                                                        coeff_power=coeff_power)
+            voxel_batch = voxel_batch.block_until_ready()
+            voxel_batch_list.append(jax.device_put(voxel_batch, output_device))
+
+        recon_at_indices = jnp.concatenate(voxel_batch_list, axis=0)
+        return recon_at_indices
+
+    def sparse_back_project_sharded_v2(self, sinogram, pixel_indices, coeff_power=1, output_device=None):
+        """
+        Shard_map-based back projection. Each device scans its own shard of views and
+        accumulates into a voxel buffer, then jax.lax.psum combines partial sums across
+        devices on the 'views' mesh axis. Avoids the vmap peak memory in sparse_back_project_sharded.
+        """
+        from jax.experimental.shard_map import shard_map
+
+        sinogram_shape = self.get_params('sinogram_shape')
+        recon_shape = self.get_params('recon_shape')
+        geometry_params = self.get_geometry_parameters()
+        num_slices = recon_shape[2]
+
+        ProjectorParams = namedtuple('ProjectorParams', ['sinogram_shape', 'recon_shape', 'geometry_params'])
+        projector_params = ProjectorParams(sinogram_shape, recon_shape, geometry_params)
+
+        view_params_name = self.get_params('view_params_name')
+        view_params_array = self.get_params(view_params_name)
+
+        mesh = self.sinogram_device.mesh
+        bp_one_view = type(self).back_project_one_view_to_pixel_batch
+
+        view_params_sharded = jax.device_put(view_params_array, NamedSharding(mesh, P('views')))
+        sinogram = jax.device_put(sinogram, self.sinogram_device)
+
+        def per_device_bp(sino_shard, vpa_shard, pix_idx):
+            init = jnp.zeros((pix_idx.shape[0], num_slices), dtype=sino_shard.dtype)
+
+            def body(acc, inp):
+                view, vp = inp
+                contrib = bp_one_view(view, pix_idx, vp, projector_params, coeff_power)
+                return acc + contrib, None
+
+            acc, _ = jax.lax.scan(body, init, (sino_shard, vpa_shard))
+            # Combine partial sums across devices.
+            return jax.lax.psum(acc, axis_name='views')
+
+        bp_sharded = shard_map(
+            per_device_bp,
+            mesh=mesh,
+            in_specs=(P('views'), P('views'), P()),
+            out_specs=P(),
+            check_rep=False,
+        )
+
+        # Loop over pixel batches at the Python level.
+        transfer_pixel_batch_size = self.transfer_pixel_batch_size
+        num_pixels = len(pixel_indices)
+        pixel_batch_start_indices = jnp.arange(num_pixels, step=transfer_pixel_batch_size, dtype=int)
+        pixel_batch_end_indices = jnp.concatenate(
+            [pixel_batch_start_indices[1:], num_pixels * jnp.ones(1, dtype=int)]
+        )
+
+        voxel_batch_list = []
+        for pixel_index_start, pixel_index_end in zip(pixel_batch_start_indices, pixel_batch_end_indices):
+            pixel_index_batch = jax.device_put(
+                pixel_indices[pixel_index_start:pixel_index_end], self.replicated_device
+            )
+            voxel_batch = bp_sharded(sinogram, view_params_sharded, pixel_index_batch)
             voxel_batch = voxel_batch.block_until_ready()
             voxel_batch_list.append(jax.device_put(voxel_batch, output_device))
 
