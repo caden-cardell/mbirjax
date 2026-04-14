@@ -4,7 +4,7 @@
 #SBATCH -A bouman -p ai -q normal
 #SBATCH -t 04:00:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=28 --gpus-per-node=4
+#SBATCH --ntasks=56 --gpus-per-node=4
 #SBATCH --array=0-7
 #SBATCH --output="/home/ncardel/repos/mbirjax/experiments/sharding/logs/slurm-%A_%a.out"
 #SBATCH --error="/home/ncardel/repos/mbirjax/experiments/sharding/logs/slurm-%A_%a.err"
