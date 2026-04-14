@@ -1,0 +1,33 @@
+Running: size=256, num_gpus=1, output=/home/ncardel/repos/mbirjax/experiments/sharding/recon_time_256x256x256_1gpu.txt
+
+[93m ━━━━━━━━━━━ NOTICE: TomographyModel has been modified to support sharding! ━━━━━━━━━━━ [0m
+
+/scratch/gautschi/ncardel/recon_mem/cone_256_256_256_projection_data.h5 already exists for 256, 256, 256 data
+
+TEST PARAMS:
+Transfer pixel batch size: 204800
+
+GPU STARTING MEMORY STATS:
+GPU 0
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.125GB
+  bytes_limit:        77.595GB
+CPU
+  bytes_in_use:        0.828GB
+  peak_bytes_in_use:   1.097GB
+  bytes_limit:       954.668GB
+
+STARTING RECON FIRST PASS:
+
+ELAPSED TIME: 41.789 seconds
+
+GPU FINAL MEMORY STATS:
+GPU 0
+  bytes_in_use:        0.063GB
+  peak_bytes_in_use:   1.951GB
+  bytes_limit:        77.595GB
+CPU
+  bytes_in_use:        1.506GB
+  peak_bytes_in_use:   1.780GB
+  bytes_limit:       864.236GB
+output_filepath: /home/ncardel/repos/mbirjax/experiments/sharding/recon_time_256x256x256_1gpu.txt

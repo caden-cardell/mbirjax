@@ -57,6 +57,7 @@ def main():
     parser = argparse.ArgumentParser(description="Plot MBIRJAX reconstruction times.")
     parser.add_argument("--dir", default=None, help="Directory containing recon_time_*.txt files (default: script directory)")
     parser.add_argument("--output", default=None, help="Save plot to this file instead of displaying interactively")
+    parser.add_argument("--axis", choices=["linear", "loglog"], default="linear", help="Axis scale (default: linear)")
     args = parser.parse_args()
 
     search_dir = Path(args.dir) if args.dir else Path(__file__).parent
@@ -108,8 +109,13 @@ def main():
     ax.set_ylabel("Reconstruction time (seconds)", fontsize=13)
     ax.set_title("MBIRJAX Reconstruction Time vs Sinogram Size", fontsize=14)
     ax.legend(fontsize=12)
+    if args.axis == "loglog":
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.set_xticks(sorted({size for sizes_times in data.values() for size, _ in sizes_times}))
+    ax.xaxis.set_major_formatter(plt.ScalarFormatter())
     ax.tick_params(axis="both", labelsize=11)
 
     fig.tight_layout()

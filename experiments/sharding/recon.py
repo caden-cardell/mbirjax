@@ -82,7 +82,7 @@ def recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv
     mj.get_memory_stats()
 
     print("\nSTARTING RECON FIRST PASS:")
-    recon_model.set_params(use_gpu="automatic")
+    recon_model.set_params(use_gpu="full")
     time0 = time.time()
     recon, _ = recon_model.recon(sinogram,
                                  weights=weights,
