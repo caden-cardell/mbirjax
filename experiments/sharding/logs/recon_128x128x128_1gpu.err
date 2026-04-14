@@ -39,59 +39,10 @@ After iteration 0 of a max of 15: Pct change=2.2775, Forward loss=0.7587
 Relative step size (alpha)=0.02, Error sino RMSE=0.3995
 Number subsets = 1
 
-After iteration 1 of a max of 15: Pct change=3.6991, Forward loss=0.6363
-Relative step size (alpha)=0.07, Error sino RMSE=0.3371
+After iteration 1 of a max of 15: Pct change=3.7001, Forward loss=0.6367
+Relative step size (alpha)=0.07, Error sino RMSE=0.3372
 Number subsets = 4
 
-After iteration 2 of a max of 15: Pct change=7.2408, Forward loss=0.4503
-Relative step size (alpha)=0.29, Error sino RMSE=0.2396
+After iteration 2 of a max of 15: Pct change=7.2669, Forward loss=0.4508
+Relative step size (alpha)=0.29, Error sino RMSE=0.2399
 Number subsets = 16
-
-After iteration 3 of a max of 15: Pct change=10.6849, Forward loss=0.2275
-Relative step size (alpha)=1.03, Error sino RMSE=0.1220
-Number subsets = 64
-
-After iteration 4 of a max of 15: Pct change=5.8170, Forward loss=0.1663
-Relative step size (alpha)=1.10, Error sino RMSE=0.0894
-Number subsets = 128
-
-After iteration 5 of a max of 15: Pct change=3.5174, Forward loss=0.1383
-Relative step size (alpha)=1.11, Error sino RMSE=0.0744
-Number subsets = 128
-
-After iteration 6 of a max of 15: Pct change=2.3013, Forward loss=0.1224
-Relative step size (alpha)=1.11, Error sino RMSE=0.0659
-Number subsets = 128
-
-After iteration 7 of a max of 15: Pct change=1.5279, Forward loss=0.1122
-Relative step size (alpha)=1.12, Error sino RMSE=0.0604
-Number subsets = 128
-
-After iteration 8 of a max of 15: Pct change=1.0338, Forward loss=0.1058
-Relative step size (alpha)=1.12, Error sino RMSE=0.0570
-Number subsets = 128
-
-After iteration 9 of a max of 15: Pct change=0.7124, Forward loss=0.1014
-Relative step size (alpha)=1.12, Error sino RMSE=0.0546
-Number subsets = 128
-
-After iteration 10 of a max of 15: Pct change=0.4947, Forward loss=0.0985
-Relative step size (alpha)=1.12, Error sino RMSE=0.0531
-Number subsets = 128
-
-After iteration 11 of a max of 15: Pct change=0.3478, Forward loss=0.0966
-Relative step size (alpha)=1.12, Error sino RMSE=0.0520
-Number subsets = 128
-
-After iteration 12 of a max of 15: Pct change=0.2484, Forward loss=0.0953
-Relative step size (alpha)=1.13, Error sino RMSE=0.0513
-Number subsets = 128
-
-After iteration 13 of a max of 15: Pct change=0.1800, Forward loss=0.0944
-Relative step size (alpha)=1.13, Error sino RMSE=0.0508
-Number subsets = 128
-
-After iteration 14 of a max of 15: Pct change=0.1356, Forward loss=0.0938
-Relative step size (alpha)=1.15, Error sino RMSE=0.0505
-Number subsets = 128
-Logs written to /home/ncardel/repos/mbirjax/experiments/sharding/logs/recon.log
