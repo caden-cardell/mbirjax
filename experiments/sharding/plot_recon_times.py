@@ -3,14 +3,16 @@
 Plot reconstruction time vs sinogram size for 1, 2, and 4 GPU configurations.
 
 Usage:
-    python plot_recon_times.py [output_file]
+    python plot_recon_times.py [--dir DATA_DIR] [--output OUTPUT_FILE]
 
-If no output file is given, the plot is displayed interactively.
+If --dir is not given, the script's own directory is used.
+If --output is not given, the plot is displayed interactively.
 """
 
-import sys
+import argparse
 import re
 import csv
+import sys
 from pathlib import Path
 import matplotlib.pyplot as plt
 
@@ -52,11 +54,16 @@ def parse_file(path: Path) -> dict | None:
 
 
 def main():
-    script_dir = Path(__file__).parent
-    txt_files = sorted(script_dir.glob("recon_time_*.txt"))
+    parser = argparse.ArgumentParser(description="Plot MBIRJAX reconstruction times.")
+    parser.add_argument("--dir", default=None, help="Directory containing recon_time_*.txt files (default: script directory)")
+    parser.add_argument("--output", default=None, help="Save plot to this file instead of displaying interactively")
+    args = parser.parse_args()
+
+    search_dir = Path(args.dir) if args.dir else Path(__file__).parent
+    txt_files = sorted(search_dir.glob("recon_time_*.txt"))
 
     if not txt_files:
-        print("No recon_time_*.txt files found in the script directory.")
+        print(f"No recon_time_*.txt files found in {search_dir}.")
         sys.exit(1)
 
     # Group results by GPU count: {num_gpus: [(size, elapsed_seconds), ...]}
@@ -107,10 +114,9 @@ def main():
 
     fig.tight_layout()
 
-    if len(sys.argv) > 1:
-        out_path = sys.argv[1]
-        fig.savefig(out_path, dpi=150)
-        print(f"Plot saved to {out_path}")
+    if args.output:
+        fig.savefig(args.output, dpi=150)
+        print(f"Plot saved to {args.output}")
     else:
         plt.show()
 
