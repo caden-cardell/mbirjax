@@ -1,0 +1,57 @@
+Running: size=512, num_gpus=4, output=/home/ncardel/repos/mbirjax/experiments/sharding/recon_time_512x512x512_4gpu.txt
+
+[93m ━━━━━━━━━━━ NOTICE: TomographyModel has been modified to support sharding! ━━━━━━━━━━━ [0m
+
+/scratch/gautschi/ncardel/recon_mem/cone_512_512_512_projection_data.h5 already exists for 512, 512, 512 data
+
+TEST PARAMS:
+Transfer pixel batch size: 39165
+
+GPU STARTING MEMORY STATS:
+GPU 0
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.500GB
+  bytes_limit:        77.595GB
+GPU 1
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.000GB
+  bytes_limit:        77.595GB
+GPU 2
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.000GB
+  bytes_limit:        77.595GB
+GPU 3
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.000GB
+  bytes_limit:        77.595GB
+CPU
+  bytes_in_use:        2.481GB
+  peak_bytes_in_use:   2.529GB
+  bytes_limit:       928.947GB
+
+STARTING RECON FIRST PASS:
+
+ELAPSED TIME: 86.536 seconds
+
+GPU FINAL MEMORY STATS:
+GPU 0
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:  20.293GB
+  bytes_limit:        77.595GB
+GPU 1
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:  20.417GB
+  bytes_limit:        77.595GB
+GPU 2
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:  20.417GB
+  bytes_limit:        77.595GB
+GPU 3
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:  20.417GB
+  bytes_limit:        77.595GB
+CPU
+  bytes_in_use:       11.745GB
+  peak_bytes_in_use:  11.739GB
+  bytes_limit:       921.214GB
+output_filepath: /home/ncardel/repos/mbirjax/experiments/sharding/recon_time_512x512x512_4gpu.txt

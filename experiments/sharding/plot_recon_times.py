@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""
+Plot reconstruction time vs sinogram size for 1, 2, and 4 GPU configurations.
+
+Usage:
+    python plot_recon_times.py [output_file]
+
+If no output file is given, the plot is displayed interactively.
+"""
+
+import sys
+import re
+import csv
+from pathlib import Path
+import matplotlib.pyplot as plt
+
+# Map GPU count to plot style
+GPU_STYLES = {
+    1: {"color": "#1f77b4", "marker": "o", "label": "1 GPU"},
+    2: {"color": "#ff7f0e", "marker": "s", "label": "2 GPUs"},
+    4: {"color": "#2ca02c", "marker": "^", "label": "4 GPUs"},
+}
+
+FILENAME_RE = re.compile(r"recon_time_(\d+)x(\d+)x(\d+)_(\d+)gpu\.txt$")
+
+
+def parse_file(path: Path) -> dict | None:
+    """Return parsed fields from a result file, or None on failure."""
+    m = FILENAME_RE.search(path.name)
+    if not m:
+        print(f"Skipping {path.name}: filename does not match expected pattern.")
+        return None
+
+    num_gpus = int(m.group(4))
+
+    with path.open() as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    if not rows:
+        print(f"Skipping {path.name}: no data rows.")
+        return None
+
+    row = rows[0]
+    return {
+        "num_views": int(row["num_views"]),
+        "num_det_rows": int(row["num_det_rows"]),
+        "num_det_channels": int(row["num_det_channels"]),
+        "elapsed_seconds": float(row["elapsed_seconds"]),
+        "num_gpus": num_gpus,
+    }
+
+
+def main():
+    script_dir = Path(__file__).parent
+    txt_files = sorted(script_dir.glob("recon_time_*.txt"))
+
+    if not txt_files:
+        print("No recon_time_*.txt files found in the script directory.")
+        sys.exit(1)
+
+    # Group results by GPU count: {num_gpus: [(size, elapsed_seconds), ...]}
+    data: dict[int, list[tuple[int, float]]] = {}
+
+    for path in txt_files:
+        result = parse_file(path)
+        if result is None:
+            continue
+
+        # Use num_views as the representative sinogram size (all three dims are equal)
+        size = result["num_views"]
+        gpu_count = result["num_gpus"]
+
+        data.setdefault(gpu_count, []).append((size, result["elapsed_seconds"]))
+
+    if not data:
+        print("No valid data files found.")
+        sys.exit(1)
+
+    # Sort each series by size
+    for gpu_count in data:
+        data[gpu_count].sort(key=lambda t: t[0])
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(9, 6))
+
+    for gpu_count in sorted(data.keys()):
+        style = GPU_STYLES.get(gpu_count, {"color": "gray", "marker": "x", "label": f"{gpu_count} GPUs"})
+        sizes, times = zip(*data[gpu_count])
+        ax.plot(
+            sizes,
+            times,
+            color=style["color"],
+            marker=style["marker"],
+            label=style["label"],
+            linewidth=2,
+            markersize=8,
+        )
+
+    ax.set_xlabel("Sinogram size (N, for N×N×N)", fontsize=13)
+    ax.set_ylabel("Reconstruction time (seconds)", fontsize=13)
+    ax.set_title("MBIRJAX Reconstruction Time vs Sinogram Size", fontsize=14)
+    ax.legend(fontsize=12)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.set_xticks(sorted({size for sizes_times in data.values() for size, _ in sizes_times}))
+    ax.tick_params(axis="both", labelsize=11)
+
+    fig.tight_layout()
+
+    if len(sys.argv) > 1:
+        out_path = sys.argv[1]
+        fig.savefig(out_path, dpi=150)
+        print(f"Plot saved to {out_path}")
+    else:
+        plt.show()
+
+
+if __name__ == "__main__":
+    main()

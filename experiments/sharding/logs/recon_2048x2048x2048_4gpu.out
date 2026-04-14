@@ -1,0 +1,32 @@
+Running: size=2048, num_gpus=4, output=/home/ncardel/repos/mbirjax/experiments/sharding/recon_time_2048x2048x2048_4gpu.txt
+
+[93m ━━━━━━━━━━━ NOTICE: TomographyModel has been modified to support sharding! ━━━━━━━━━━━ [0m
+
+/scratch/gautschi/ncardel/recon_mem/cone_2048_2048_2048_projection_data.h5 already exists for 2048, 2048, 2048 data
+
+TEST PARAMS:
+Transfer pixel batch size: 434
+
+GPU STARTING MEMORY STATS:
+GPU 0
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   8.000GB
+  bytes_limit:        77.595GB
+GPU 1
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.000GB
+  bytes_limit:        77.595GB
+GPU 2
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.000GB
+  bytes_limit:        77.595GB
+GPU 3
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.000GB
+  bytes_limit:        77.595GB
+CPU
+  bytes_in_use:       66.924GB
+  peak_bytes_in_use:  66.982GB
+  bytes_limit:       860.387GB
+
+STARTING RECON FIRST PASS:

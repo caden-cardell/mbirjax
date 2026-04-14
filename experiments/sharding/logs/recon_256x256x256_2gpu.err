@@ -1,0 +1,97 @@
+The following modules were not unloaded:
+  (Use "module --force purge" to unload all):
+
+  1) xalt/3.1.4
+
+Due to MODULEPATH changes, the following have been reloaded:
+  1) proxy     2) xalt/3.1.4
+
+Lmod Warning:
+-------------------------------------------------------------------------------
+The following dependent module(s) are not currently loaded: cuda/12.6.1
+(required by: openmpi/5.0.5)
+-------------------------------------------------------------------------------
+
+
+
+
+The following have been reloaded with a version change:
+  1) cuda/12.6.1 => cuda/12.9.0
+
+
+Inactive Modules:
+  1) libiconv/1.17-2v5s4pp     2) libxml2/2.10.3-7g6anly
+
+Due to MODULEPATH changes, the following have been reloaded:
+  1) cuda/12.9.0
+
+/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/mbirjax/viewer.py:16: UserWarning: TkAgg not available for matplotlib. slice_viewer menus may not display correctly.
+  warnings.warn("TkAgg not available for matplotlib. slice_viewer menus may not display correctly.")
+GPU used for: sharding
+Estimated GPU memory required = 58.197 GB, available = 77.595 GB
+Estimated CPU memory required = 0.500 GB, available = 125.781 GB
+Starting direct recon for initial reconstruction
+Initializing error sinogram
+Computing Hessian diagonal
+Starting VCD iterations
+
+After iteration 0 of a max of 15: Pct change=2.0768, Forward loss=0.4344
+Relative step size (alpha)=0.01, Error sino RMSE=0.4530
+Number subsets = 1
+
+After iteration 1 of a max of 15: Pct change=2.4065, Forward loss=0.3309
+Relative step size (alpha)=0.05, Error sino RMSE=0.3493
+Number subsets = 4
+
+After iteration 2 of a max of 15: Pct change=3.9471, Forward loss=0.2464
+Relative step size (alpha)=0.23, Error sino RMSE=0.2627
+Number subsets = 16
+
+After iteration 3 of a max of 15: Pct change=6.9208, Forward loss=0.1453
+Relative step size (alpha)=0.91, Error sino RMSE=0.1574
+Number subsets = 64
+
+After iteration 4 of a max of 15: Pct change=4.9708, Forward loss=0.1081
+Relative step size (alpha)=1.26, Error sino RMSE=0.1179
+Number subsets = 128
+
+After iteration 5 of a max of 15: Pct change=2.2719, Forward loss=0.0912
+Relative step size (alpha)=1.23, Error sino RMSE=0.0997
+Number subsets = 128
+
+After iteration 6 of a max of 15: Pct change=1.2385, Forward loss=0.0827
+Relative step size (alpha)=1.19, Error sino RMSE=0.0904
+Number subsets = 128
+
+After iteration 7 of a max of 15: Pct change=0.7140, Forward loss=0.0782
+Relative step size (alpha)=1.13, Error sino RMSE=0.0855
+Number subsets = 128
+
+After iteration 8 of a max of 15: Pct change=0.4455, Forward loss=0.0757
+Relative step size (alpha)=1.09, Error sino RMSE=0.0827
+Number subsets = 128
+
+After iteration 9 of a max of 15: Pct change=0.2998, Forward loss=0.0741
+Relative step size (alpha)=1.09, Error sino RMSE=0.0810
+Number subsets = 128
+
+After iteration 10 of a max of 15: Pct change=0.2145, Forward loss=0.0731
+Relative step size (alpha)=1.09, Error sino RMSE=0.0799
+Number subsets = 128
+
+After iteration 11 of a max of 15: Pct change=0.1557, Forward loss=0.0724
+Relative step size (alpha)=1.11, Error sino RMSE=0.0792
+Number subsets = 128
+
+After iteration 12 of a max of 15: Pct change=0.1227, Forward loss=0.0720
+Relative step size (alpha)=1.13, Error sino RMSE=0.0787
+Number subsets = 128
+
+After iteration 13 of a max of 15: Pct change=0.0970, Forward loss=0.0717
+Relative step size (alpha)=1.15, Error sino RMSE=0.0784
+Number subsets = 128
+
+After iteration 14 of a max of 15: Pct change=0.0799, Forward loss=0.0715
+Relative step size (alpha)=1.15, Error sino RMSE=0.0782
+Number subsets = 128
+Logs written to /home/ncardel/repos/mbirjax/experiments/sharding/logs/recon.log
