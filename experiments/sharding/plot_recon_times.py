@@ -147,6 +147,18 @@ def main():
                 linewidth=2,
                 markersize=8,
             )
+            # Annotate the largest-size point for this (dataset, gpu_count) with its elapsed time.
+            max_size, max_time = sizes[-1], times[-1]
+            ax.annotate(
+                f"{max_time:.1f}s",
+                xy=(max_size, max_time),
+                xytext=(-6, 8),
+                textcoords="offset points",
+                ha="left",
+                va="bottom",
+                fontsize=10,
+                color=color,
+            )
 
     # N^3 reference line
     sorted_sizes = sorted(all_sizes)
