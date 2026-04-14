@@ -871,12 +871,14 @@ class ConeBeamModel(TomographyModel):
         Returns:
             recon (jax array): The reconstructed volume after FDK reconstruction.
         """
-
+        print("Starting FDK filtering")
         filtered_sinogram = self.fdk_filter(sinogram, filter_name=filter_name, view_batch_size=view_batch_size)
 
         # Apply backprojection
+        print("Starting FDK back projections")
         recon = self.back_project(filtered_sinogram)
 
+        print("Done FDK recon")
         return recon
 
     def split_sino_recon(self, sino, weights=None, half_overlap=5, init_recon=None, max_iterations=15, stop_threshold_change_pct=0.2,
