@@ -684,7 +684,6 @@ class TomographyModel(ParameterHandler):
         via jax.lax.scan, so peak memory is one view's intermediates per device instead of all
         views at once (as happens with the vmap path in sparse_forward_project_sharded).
         """
-        from jax.experimental.shard_map import shard_map
 
         sinogram_shape = self.get_params('sinogram_shape')
         recon_shape = self.get_params('recon_shape')
@@ -714,12 +713,11 @@ class TomographyModel(ParameterHandler):
             _, out_views = jax.lax.scan(body, None, (local_vpa, local_ev))
             return out_views
 
-        fp_sharded = shard_map(
+        fp_sharded = jax.shard_map(
             per_device_fp,
             mesh=mesh,
             in_specs=(P(), P(), P('views'), P('views')),
             out_specs=P('views'),
-            check_rep=False,
         )
 
         # Loop over pixel batches, updating the sharded sinogram each iteration.
@@ -846,8 +844,6 @@ class TomographyModel(ParameterHandler):
         accumulates into a voxel buffer, then jax.lax.psum combines partial sums across
         devices on the 'views' mesh axis. Avoids the vmap peak memory in sparse_back_project_sharded.
         """
-        from jax.experimental.shard_map import shard_map
-
         sinogram_shape = self.get_params('sinogram_shape')
         recon_shape = self.get_params('recon_shape')
         geometry_params = self.get_geometry_parameters()
@@ -877,12 +873,11 @@ class TomographyModel(ParameterHandler):
             # Combine partial sums across devices.
             return jax.lax.psum(acc, axis_name='views')
 
-        bp_sharded = shard_map(
+        bp_sharded = jax.shard_map(
             per_device_bp,
             mesh=mesh,
             in_specs=(P('views'), P('views'), P()),
             out_specs=P(),
-            check_rep=False,
         )
 
         # Loop over pixel batches at the Python level.
