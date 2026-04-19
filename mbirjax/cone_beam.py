@@ -824,7 +824,8 @@ class ConeBeamModel(TomographyModel):
         weight_map = source_detector_dist / jnp.sqrt(source_detector_dist ** 2 + u_grid**2 + v_grid**2)
 
         # Apply the pre-weighting factor to the sinogram
-        weighted_sinogram = jax.device_put(sinogram * weight_map[None, :, :], self.sinogram_device)
+        weight_map = jax.device_put(weight_map, self.replicated_device)
+        weighted_sinogram = sinogram * weight_map[None, :, :]
 
         # Compute the scaled filter
         # Scaling factor alpha adjusts the filter to account for voxel size, ensuring consistent reconstruction.
@@ -833,6 +834,7 @@ class ConeBeamModel(TomographyModel):
         recon_filter = tomography_utils.generate_direct_recon_filter(num_channels, filter_name=filter_name)
         alpha = delta_det_row / (delta_voxel**3 * M_0)
         recon_filter = alpha * recon_filter
+        recon_filter = jax.device_put(recon_filter, self.replicated_device)
 
         # Define convolution for a single row (across its channels)
         def convolve_row(row):
