@@ -234,8 +234,8 @@ class TomographyModel(ParameterHandler):
             excess_views = num_views % num_gpus
             if excess_views != 0:
                 raise ValueError(
-                    f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected,"
-                    "but number of views must be an exact multiple of the number of GPUs."
+                    f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected, "
+                    "but number of views must be an exact multiple of the number of GPUs. "
                     f"Currently there are {num_views} views and {num_gpus} detected GPUs, so there are {excess_views} "
                     f"excess views. To disable sharding, use ct_model.set_params(use_gpu='sinograms').")
 
@@ -262,8 +262,8 @@ class TomographyModel(ParameterHandler):
             bytes_for_projection_per_gpu = target_peak_bytes_per_gpu - bytes_for_vcd_sinos_per_gpu
             if bytes_for_projection_per_gpu < 0:
                 raise RuntimeError(
-                    f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected, but"
-                    "there is not enough memory for reconstruction with sharding. Either downsample the sinogram"
+                    f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected, but "
+                    "there is not enough memory for reconstruction with sharding. Either downsample the sinogram "
                     f"or disable sharding. To disable sharding, use ct_model.set_params(use_gpu='sinograms').")
 
             # calculate the pixel batch size
@@ -277,8 +277,8 @@ class TomographyModel(ParameterHandler):
             self.transfer_pixel_batch_size = int(pixel_batch_size)  # to avoid concatenation when projecting
             if self.transfer_pixel_batch_size < 100:
                 raise ValueError(
-                    f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected, but"
-                    "there is not enough memory for for a pixel batch size greater than 100. Either downsample the"
+                    f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected, but "
+                    "there is not enough memory for for a pixel batch size greater than 100. Either downsample the "
                     f"sinogram or disable sharding. To disable sharding, use ct_model.set_params(use_gpu='sinograms').")
 
             mem_required_for_gpu = target_peak_bytes_per_gpu / gb
