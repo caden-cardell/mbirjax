@@ -844,14 +844,22 @@ class ConeBeamModel(TomographyModel):
 
         # Apply convolution across the channels of the weighted sinogram per each fixed view & row
         num_views = sinogram.shape[0]
-        filtered_sino_list = []
-        for i in range(0, num_views, view_batch_size):
-            sino_batch = jax.device_put(weighted_sinogram[i:min(i + view_batch_size, num_views)], self.worker)
-            filtered_sinogram_batch = jax.lax.map(apply_convolution_to_view, sino_batch, batch_size=view_batch_size)
-            filtered_sinogram_batch.block_until_ready()
-            filtered_sino_list.append(jax.device_put(filtered_sinogram_batch, self.sinogram_device)) # TODO:CADEN implement a version of this that supports a sharded sinogram_device
-        filtered_sinogram = jnp.concatenate(filtered_sino_list, axis=0)
-        filtered_sinogram *= jnp.pi / num_views
+
+        if self.use_gpu == 'sharding':
+            num_devices = self.sinogram_device.mesh.devices.size
+            filtered_sinogram = jax.lax.map(apply_convolution_to_view, weighted_sinogram, batch_size=num_devices)
+            filtered_sinogram.block_until_ready()
+            del weighted_sinogram
+            filtered_sinogram *= jnp.pi / num_views
+        else:
+            filtered_sino_list = []
+            for i in range(0, num_views, view_batch_size):
+                sino_batch = jax.device_put(weighted_sinogram[i:min(i + view_batch_size, num_views)], self.worker)
+                filtered_sinogram_batch = jax.lax.map(apply_convolution_to_view, sino_batch, batch_size=view_batch_size)
+                filtered_sinogram_batch.block_until_ready()
+                filtered_sino_list.append(jax.device_put(filtered_sinogram_batch, self.sinogram_device))
+            filtered_sinogram = jnp.concatenate(filtered_sino_list, axis=0)
+            filtered_sinogram *= jnp.pi / num_views
         return filtered_sinogram
 
     def fdk_recon(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
