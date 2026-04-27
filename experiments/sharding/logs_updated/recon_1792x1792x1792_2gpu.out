@@ -1,0 +1,5 @@
+Running: size=1792, num_gpus=2, output=/home/ncardel/repos/mbirjax/experiments/sharding/recon_time_1792x1792x1792_2gpu.txt
+
+[93m ━━━━━━━━━━━ NOTICE: TomographyModel has been modified to support sharding! ━━━━━━━━━━━ [0m
+
+/scratch/gautschi/ncardel/recon_mem/cone_1792_1792_1792_projection_data.h5 already exists for 1792, 1792, 1792 data
