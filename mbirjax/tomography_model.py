@@ -261,10 +261,11 @@ class TomographyModel(ParameterHandler):
             bytes_for_vcd_sinos_per_gpu = bytes_per_sinogram_with_floor * recon_reps_for_vcd / num_gpus
             bytes_for_projection_per_gpu = target_peak_bytes_per_gpu - bytes_for_vcd_sinos_per_gpu
             if bytes_for_projection_per_gpu < 0:
-                raise RuntimeError(
+                warnings.warn(
                     f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected, but "
                     "there is not enough memory for reconstruction with sharding. Either downsample the sinogram "
                     f"or disable sharding. To disable sharding, use ct_model.set_params(use_gpu='sinograms').")
+                bytes_for_projection_per_gpu = 100  # TODO:CADEN magic number
 
             # calculate the pixel batch size
             views_per_gpu = num_views / num_gpus
@@ -276,10 +277,12 @@ class TomographyModel(ParameterHandler):
             self.pixel_batch_size_for_vmap = int(pixel_batch_size)
             self.transfer_pixel_batch_size = int(pixel_batch_size)  # to avoid concatenation when projecting
             if self.transfer_pixel_batch_size < 100:
-                raise ValueError(
+                warnings.warn(
                     f"Sharding has been invoked because use_gpu='automatic' and multiple GPUs are detected, but "
                     "there is not enough memory for for a pixel batch size greater than 100. Either downsample the "
                     f"sinogram or disable sharding. To disable sharding, use ct_model.set_params(use_gpu='sinograms').")
+                self.pixel_batch_size_for_vmap = 100  # TODO:CADEN magic number
+                self.transfer_pixel_batch_size = 100  # TODO:CADEN magic number
 
             mem_required_for_gpu = target_peak_bytes_per_gpu / gb
             mem_required_for_cpu = recon_reps_for_vcd * mem_per_recon + 2 * mem_per_sinogram
