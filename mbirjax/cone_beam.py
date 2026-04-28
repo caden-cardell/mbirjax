@@ -826,6 +826,7 @@ class ConeBeamModel(TomographyModel):
         # Apply the pre-weighting factor to the sinogram
         weight_map = jax.device_put(weight_map, self.replicated_device)
         weighted_sinogram = sinogram * weight_map[None, :, :]
+        del weight_map
 
         # Compute the scaled filter
         # Scaling factor alpha adjusts the filter to account for voxel size, ensuring consistent reconstruction.
@@ -840,9 +841,11 @@ class ConeBeamModel(TomographyModel):
         def convolve_row(row):
             return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
 
-        # Apply above convolve func across each row of a view
+        # Apply above convolve func across each row of a view, batching rows to bound peak memory
+        row_batch_size = min(num_rows, self.entries_per_cylinder_batch) # TODO:CADEN use different min value
+
         def apply_convolution_to_view(view):
-            return jax.vmap(convolve_row)(view)
+            return jax.lax.map(convolve_row, view, batch_size=row_batch_size)
 
         # Apply convolution across the channels of the weighted sinogram per each fixed view & row
         num_views = sinogram.shape[0]
