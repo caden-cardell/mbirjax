@@ -17,7 +17,7 @@ NUM_GPUS=$SLURM_GPUS_PER_NODE
 SIZES=(128 256)
 SIZE=${SIZES[$SLURM_ARRAY_TASK_ID]}
 
-SCRIPT_DIR="/home/ncardel/repos/mbirjax/experiments/sharding"
+SCRIPT_DIR="/home/ncardel/repos/mbirjax/experiments/sharding_fdk"
 LOG_DIR="${SCRIPT_DIR}/logs"
 exec > "${LOG_DIR}/recon_${SIZE}x${SIZE}x${SIZE}_${NUM_GPUS}gpu.out" \
      2>"${LOG_DIR}/recon_${SIZE}x${SIZE}x${SIZE}_${NUM_GPUS}gpu.err"
