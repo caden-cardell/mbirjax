@@ -1,0 +1,44 @@
+Running: size=1024, num_gpus=2, output=/home/ncardel/repos/mbirjax/experiments/sharding/recon_time_1024x1024x1024_2gpu.txt
+
+[93m ━━━━━━━━━━━ NOTICE: TomographyModel has been modified to support sharding! ━━━━━━━━━━━ [0m
+
+/scratch/gautschi/ncardel/recon_mem/cone_1024_1024_1024_projection_data.h5 already exists for 1024, 1024, 1024 data
+
+TEST PARAMS:
+Transfer pixel batch size: 3940
+
+GPU STARTING MEMORY STATS:
+GPU 0
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   2.000GB
+  bytes_limit:        77.595GB
+GPU 1
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:   0.000GB
+  bytes_limit:        77.595GB
+CPU
+  bytes_in_use:        9.765GB
+  peak_bytes_in_use:   9.812GB
+  bytes_limit:       933.366GB
+
+STARTING RECON FIRST PASS:
+Starting FDK filtering
+Starting FDK back projections
+Done FDK recon
+
+ELAPSED TIME: 725.716 seconds
+
+GPU FINAL MEMORY STATS:
+GPU 0
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:  29.478GB
+  bytes_limit:        77.595GB
+GPU 1
+  bytes_in_use:        0.000GB
+  peak_bytes_in_use:  29.594GB
+  bytes_limit:        77.595GB
+CPU
+  bytes_in_use:       23.862GB
+  peak_bytes_in_use:  23.872GB
+  bytes_limit:       921.399GB
+output_filepath: /home/ncardel/repos/mbirjax/experiments/sharding/recon_time_1024x1024x1024_2gpu.txt

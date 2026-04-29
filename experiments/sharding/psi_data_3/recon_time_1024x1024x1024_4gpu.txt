@@ -1,0 +1,2 @@
+num_views,num_det_rows,num_det_channels,elapsed_seconds,transfer_pixel_batch_size,gpu0_peak_bytes,gpu1_peak_bytes,gpu2_peak_bytes,gpu3_peak_bytes
+1024,1024,1024,531.533,8902,26308218624,26340193024,26340193024,26340193024

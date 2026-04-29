@@ -1,0 +1,81 @@
+The following modules were not unloaded:
+  (Use "module --force purge" to unload all):
+
+  1) xalt/3.1.4
+
+Due to MODULEPATH changes, the following have been reloaded:
+  1) proxy     2) xalt/3.1.4
+
+Lmod Warning:
+-------------------------------------------------------------------------------
+The following dependent module(s) are not currently loaded: cuda/12.6.1
+(required by: openmpi/5.0.5)
+-------------------------------------------------------------------------------
+
+
+
+
+The following have been reloaded with a version change:
+  1) cuda/12.6.1 => cuda/12.9.0
+
+
+Inactive Modules:
+  1) libiconv/1.17-2v5s4pp     2) libxml2/2.10.3-7g6anly
+
+Due to MODULEPATH changes, the following have been reloaded:
+  1) cuda/12.9.0
+
+/home/ncardel/repos/mbirjax/mbirjax/viewer.py:16: UserWarning: TkAgg not available for matplotlib. slice_viewer menus may not display correctly.
+  warnings.warn("TkAgg not available for matplotlib. slice_viewer menus may not display correctly.")
+GPU used for: sharding
+Estimated GPU memory required = 58.197 GB, available = 77.595 GB
+Estimated CPU memory required = 171.500 GB, available = 503.125 GB
+Starting direct recon for initial reconstruction
+W0429 01:38:36.058263  610072 hlo_rematerialization.cc:3233] Can't reduce memory use below 40.84GiB (43848276373 bytes) by rematerialization; only reduced to 42.88GiB (46036680704 bytes), down from 42.88GiB (46036680704 bytes) originally
+W0429 01:38:46.277247  610017 bfc_allocator.cc:502] Allocator (GPU_3_bfc) ran out of memory trying to allocate 21.44GiB (rounded to 23018340352)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+W0429 01:38:46.277365  610017 bfc_allocator.cc:513] ******************************______________*******************************_____________*********___
+W0429 01:38:46.277424  610011 bfc_allocator.cc:502] Allocator (GPU_1_bfc) ran out of memory trying to allocate 21.44GiB (rounded to 23018340352)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+W0429 01:38:46.277523  610011 bfc_allocator.cc:513] ******************************______________*******************************_____________*********___
+W0429 01:38:46.277610  610008 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 21.44GiB (rounded to 23018340352)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+W0429 01:38:46.277726  610008 bfc_allocator.cc:513] ****************************__________****************************_____________********_______*____*
+W0429 01:38:46.277767  610014 bfc_allocator.cc:502] Allocator (GPU_2_bfc) ran out of memory trying to allocate 21.44GiB (rounded to 23018340352)requested by op 
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation. 
+Current allocation summary follows.
+Current allocation summary follows.
+W0429 01:38:46.277843  610014 bfc_allocator.cc:513] ******************************______________*******************************_____________*********___
+RESOURCE_EXHAUSTED: Out of memory while trying to allocate 21.44GiB.
+Insufficient memory for jax (likely insufficient GPU memory)
+Traceback (most recent call last):
+  File "/home/ncardel/repos/mbirjax/experiments/sharding/recon.py", line 129, in <module>
+    recon(num_views, num_det_rows, num_det_channels, output_filepath=output_filepath)
+  File "/home/ncardel/repos/mbirjax/experiments/sharding/recon.py", line 87, in recon
+    recon, _ = recon_model.recon(sinogram,
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py", line 1268, in recon
+    self._handle_jax_error(e)
+  File "/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py", line 1209, in _handle_jax_error
+    raise e
+  File "/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py", line 1245, in recon
+    recon, loss_vectors = self.vcd_recon(sinogram, partitions, partition_sequence, weights=weights,
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py", line 1320, in vcd_recon
+    init_recon = self.direct_recon(sinogram)  # init_recon is output to self.main device because of the default output device in self.back_project
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/mbirjax/cone_beam.py", line 772, in direct_recon
+    return self.fdk_recon(sinogram, filter_name=filter_name, view_batch_size=view_batch_size)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/mbirjax/cone_beam.py", line 888, in fdk_recon
+    filtered_sinogram = self.fdk_filter(sinogram, filter_name=filter_name, view_batch_size=view_batch_size)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/mbirjax/cone_beam.py", line 856, in fdk_filter
+    filtered_sinogram.block_until_ready()
+jax.errors.JaxRuntimeError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 21.44GiB.
