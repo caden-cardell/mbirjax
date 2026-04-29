@@ -95,6 +95,7 @@ def recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv
 
     # if the output file doesn't exist then create it
     print("output_filepath:", output_filepath)
+    os.makedirs(os.path.dirname(output_filepath) or ".", exist_ok=True)
     if not os.path.exists(output_filepath):
         with open(output_filepath, "w", newline="") as f:
             writer = csv.writer(f)
