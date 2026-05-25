@@ -843,6 +843,7 @@ class ConeBeamModel(TomographyModel):
 
         # Apply above convolve func across each row of a view, batching rows to bound peak memory
         row_batch_size = min(num_rows, self.entries_per_cylinder_batch) # TODO:CADEN use different min value
+        row_batch_size = 1
 
         def apply_convolution_to_view(view):
             return jax.lax.map(convolve_row, view, batch_size=row_batch_size)
@@ -851,11 +852,11 @@ class ConeBeamModel(TomographyModel):
         num_views = sinogram.shape[0]
 
         if self.use_gpu == 'sharding':
-            num_devices = self.sinogram_device.mesh.devices.size
-            filtered_sinogram = jax.lax.map(apply_convolution_to_view, weighted_sinogram, batch_size=num_devices)
+            filtered_sinogram = jax.jit(
+                lambda ws: jax.lax.map(apply_convolution_to_view, ws, batch_size=1) * (jnp.pi / num_views),
+                donate_argnums=(0,)
+            )(weighted_sinogram)
             filtered_sinogram.block_until_ready()
-            del weighted_sinogram
-            filtered_sinogram *= jnp.pi / num_views
         else:
             filtered_sino_list = []
             for i in range(0, num_views, view_batch_size):

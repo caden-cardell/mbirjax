@@ -77,9 +77,10 @@ def recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv
     print("\nGPU STARTING MEMORY STATS:")
     mj.get_memory_stats()
 
-    print("\nSTARTING RECON FIRST PASS:")
+    print("\nSTARTING FDK:")
     filter_model.set_params(use_gpu="automatic")
     time0 = time.time()
+    sinogram = jax.device_put(sinogram, device=filter_model.sinogram_device)
     filtered_sinogram = filter_model.fdk_filter(sinogram)
     filtered_sinogram.block_until_ready()
 
@@ -115,9 +116,9 @@ if __name__ == "__main__":
         num_det_channels = int(sys.argv[3])
         output_filepath = sys.argv[4]
     except:
-        num_views = 904
-        num_det_rows = 1496
-        num_det_channels = 1800
+        num_views = 1792
+        num_det_rows = 1792
+        num_det_channels = 1792
         output_filepath = "logs/recon_mem.txt"
 
     create_fdk_data(num_views, num_det_rows, num_det_channels)
