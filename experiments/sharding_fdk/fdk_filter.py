@@ -114,7 +114,7 @@ class FDK:
             return 1
         return source_detector_dist / source_iso_dist
 
-    def fdk_filter(self, sinogram, filter_name="ramp", view_chunk_size=None):
+    def fdk_filter(self, sinogram, filter_name="ramp", view_chunk_size=DIRECT_RECON_VIEW_BATCH_SIZE):
         # sinogram may be a numpy array or a JAX array on any device
 
         num_views, num_rows, num_channels = sinogram.shape
@@ -135,12 +135,10 @@ class FDK:
         alpha = delta_det_row / (delta_voxel**3 * M_0)
         recon_filter = alpha * jax.device_put(recon_filter, self.replicated_device)
 
-        row_batch_size = 25 #min(num_rows, self.entries_per_cylinder_batch)
+        row_batch_size = 50 #min(num_rows, self.entries_per_cylinder_batch)
 
-        num_gpus = len(jax.devices('gpu'))
-        if view_chunk_size is None:
-            view_chunk_size = num_gpus * 8
         # Round up to multiple of num_gpus so the chunk shards evenly
+        num_gpus = len(jax.devices('gpu'))
         view_chunk_size = max(num_gpus, ((view_chunk_size + num_gpus - 1) // num_gpus) * num_gpus)
 
         @jax.jit
@@ -149,20 +147,14 @@ class FDK:
                 return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
             def apply_weight_and_convolve(view):
                 return jax.lax.map(convolve_row, view * weight_map, batch_size=row_batch_size)
-            return jax.lax.map(apply_weight_and_convolve, chunk, batch_size=1)
+                # return jax.lax.map(convolve_row, view * weight_map)
+            return jax.lax.map(apply_weight_and_convolve, chunk, batch_size=8)
+            return jax.lax.map(apply_weight_and_convolve, chunk)
 
-        # donate_argnums=(0,) lets XLA reuse the output buffer in-place — no full copy
-        @functools.partial(jax.jit, donate_argnums=(0,))
-        def write_chunk(output, update, start):
-            return jax.lax.dynamic_update_slice(output, update, (start, 0, 0))
-
-        @functools.partial(jax.jit, donate_argnums=(0,))
-        def scale(arr, factor):
-            return arr * factor
-
-        # np.zeros on CPU + device_put shards each slice directly to its GPU —
-        # no single device ever holds the full array.
-        filtered = jax.device_put(np.zeros(sinogram.shape, dtype=np.float32), self.sinogram_device)
+        # Accumulate results on CPU to avoid holding two 32 GiB arrays on GPU.
+        # dynamic_update_slice on a sharded array forces XLA to treat the full
+        # array as I/O (gather-update-scatter), triggering 64 GiB HLO I/O and OOM.
+        filtered_np = np.zeros(sinogram.shape, dtype=np.float32)
 
         for start in range(0, num_views, view_chunk_size):
             end = min(start + view_chunk_size, num_views)
@@ -176,11 +168,15 @@ class FDK:
             result.block_until_ready()
             del chunk
 
-            update = result if chunk_views == view_chunk_size else result[:chunk_views]
-            filtered = write_chunk(filtered, update, jnp.array(start, dtype=jnp.int32))
+            # Copy the relevant views back to CPU numpy — avoids a sharded
+            # dynamic_update_slice and keeps peak GPU memory to one chunk.
+            filtered_np[start:end] = np.array(result[:chunk_views] if chunk_views < view_chunk_size else result)
             del result
 
-        return scale(filtered, jnp.pi / num_views)
+        # Re-shard the finished CPU array to GPUs for downstream use.
+        filtered = jax.device_put(filtered_np, self.sinogram_device)
+        del filtered_np
+        return filtered * (jnp.pi / num_views)
 
 def viewer():
     import mbirjax as mj
@@ -203,7 +199,7 @@ def viewer():
     filtered_sinogram.block_until_ready()
     print(f"fdk_filter: {time.perf_counter() - t0:.2f}s")
 
-    mj.slice_viewer(sinogram, title='Un-filtered sinogram.')
+    # mj.slice_viewer(sinogram, title='Un-filtered sinogram.')
     mj.slice_viewer(filtered_sinogram, title='FDK filtered sinogram.')
 
 
@@ -218,8 +214,9 @@ if __name__ == "__main__":
     # sinogram_shape = (1792, 1792, 1792)
     sinogram_shape = (2048, 2048, 2048)
     fdk_obj = FDK(sinogram_shape)
-    sinogram = jnp.ones(sinogram_shape, dtype=jnp.float32)
-    sinogram = jax.device_put(sinogram, fdk_obj.sinogram_device)
+    # Use np.ones (CPU) so device_put shards directly to GPUs without ever
+    # creating a 32 GiB monolithic array on GPU 0 first.
+    sinogram = jax.device_put(np.ones(sinogram_shape, dtype=np.float32), fdk_obj.sinogram_device)
     t0 = time.perf_counter()
     filtered_sinogram = fdk_obj.fdk_filter(sinogram)
     filtered_sinogram.block_until_ready()

@@ -785,6 +785,19 @@ class ConeBeamModel(TomographyModel):
         """
         return self.fdk_filter(sinogram, filter_name=filter_name, view_batch_size=view_batch_size)
 
+    def fdk_filter_sharding(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
+        """
+        Perform FDK filtering on the given sharded sinogram.
+
+        Args:
+            sinogram (jax array): The input sinogram with shape (num_views, num_rows, num_channels).
+            filter_name (string, optional): Name of the filter to be used. Defaults to "ramp"
+            view_batch_size (int, optional):  Size of view batches (used to limit memory use)
+
+        Returns:
+            filtered_sinogram (jax array): The sinogram after FDK filtering.
+        """
+
     def fdk_filter(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
         """
         Perform FDK filtering on the given sinogram.
@@ -797,10 +810,14 @@ class ConeBeamModel(TomographyModel):
         Returns:
             filtered_sinogram (jax array): The sinogram after FDK filtering.
         """
+        if self.use_gpu == 'sharding':
+            return self.fdk_filter_sharding(sinogram, filter_name, view_batch_size)
+
         # Get parameters
         num_views, num_rows, num_channels = sinogram.shape
         source_detector_dist, source_iso_dist = self.get_params(['source_detector_dist', 'source_iso_dist'])
-        delta_voxel, delta_det_row, delta_det_channel = self.get_params(['delta_voxel', 'delta_det_row', 'delta_det_channel'])
+        delta_voxel, delta_det_row, delta_det_channel = self.get_params(
+            ['delta_voxel', 'delta_det_row', 'delta_det_channel'])
         det_row_offset, det_channel_offset = self.get_params(['det_row_offset', 'det_channel_offset'])
 
         if view_batch_size is None:
@@ -821,51 +838,37 @@ class ConeBeamModel(TomographyModel):
                                                 det_channel_offset, det_row_offset, num_rows, num_channels)
 
         # Compute the weight
-        weight_map = source_detector_dist / jnp.sqrt(source_detector_dist ** 2 + u_grid**2 + v_grid**2)
+        weight_map = source_detector_dist / jnp.sqrt(source_detector_dist ** 2 + u_grid ** 2 + v_grid ** 2)
 
         # Apply the pre-weighting factor to the sinogram
-        weight_map = jax.device_put(weight_map, self.replicated_device)
-        weighted_sinogram = sinogram * weight_map[None, :, :]
-        del weight_map
+        weighted_sinogram = jax.device_put(sinogram * weight_map[None, :, :], self.sinogram_device)
 
         # Compute the scaled filter
         # Scaling factor alpha adjusts the filter to account for voxel size, ensuring consistent reconstruction.
         # For a detailed theoretical derivation of this scaling factor, please refer to the zip file linked at
         # https://mbirjax.readthedocs.io/en/latest/theory.html
         recon_filter = tomography_utils.generate_direct_recon_filter(num_channels, filter_name=filter_name)
-        alpha = delta_det_row / (delta_voxel**3 * M_0)
+        alpha = delta_det_row / (delta_voxel ** 3 * M_0)
         recon_filter = alpha * recon_filter
-        recon_filter = jax.device_put(recon_filter, self.replicated_device)
 
         # Define convolution for a single row (across its channels)
         def convolve_row(row):
             return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
 
-        # Apply above convolve func across each row of a view, batching rows to bound peak memory
-        row_batch_size = min(num_rows, self.entries_per_cylinder_batch) # TODO:CADEN use different min value
-        row_batch_size = 1
-
+        # Apply above convolve func across each row of a view
         def apply_convolution_to_view(view):
-            return jax.lax.map(convolve_row, view, batch_size=row_batch_size)
+            return jax.vmap(convolve_row)(view)
 
         # Apply convolution across the channels of the weighted sinogram per each fixed view & row
         num_views = sinogram.shape[0]
-
-        if self.use_gpu == 'sharding':
-            filtered_sinogram = jax.jit(
-                lambda ws: jax.lax.map(apply_convolution_to_view, ws, batch_size=1) * (jnp.pi / num_views),
-                donate_argnums=(0,)
-            )(weighted_sinogram)
-            filtered_sinogram.block_until_ready()
-        else:
-            filtered_sino_list = []
-            for i in range(0, num_views, view_batch_size):
-                sino_batch = jax.device_put(weighted_sinogram[i:min(i + view_batch_size, num_views)], self.worker)
-                filtered_sinogram_batch = jax.lax.map(apply_convolution_to_view, sino_batch, batch_size=view_batch_size)
-                filtered_sinogram_batch.block_until_ready()
-                filtered_sino_list.append(jax.device_put(filtered_sinogram_batch, self.sinogram_device))
-            filtered_sinogram = jnp.concatenate(filtered_sino_list, axis=0)
-            filtered_sinogram *= jnp.pi / num_views
+        filtered_sino_list = []
+        for i in range(0, num_views, view_batch_size):
+            sino_batch = jax.device_put(weighted_sinogram[i:min(i + view_batch_size, num_views)], self.sinogram_device)
+            filtered_sinogram_batch = jax.lax.map(apply_convolution_to_view, sino_batch, batch_size=view_batch_size)
+            filtered_sinogram_batch.block_until_ready()
+            filtered_sino_list.append(jax.device_put(filtered_sinogram_batch, self.sinogram_device))
+        filtered_sinogram = jnp.concatenate(filtered_sino_list, axis=0)
+        filtered_sinogram *= jnp.pi / num_views
         return filtered_sinogram
 
     def fdk_recon(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
