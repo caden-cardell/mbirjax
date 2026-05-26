@@ -612,6 +612,9 @@ class TomographyModel(ParameterHandler):
         full_indices = mj.gen_full_indices(recon_shape, use_ror_mask=self.use_ror_mask)
         voxel_values = self.get_voxels_at_indices(recon, full_indices)
         output_device = self.sinogram_device
+
+        # TODO: record memory here
+        # TODO: find out what is actuall on the GPU here
         sinogram = self.sparse_forward_project(voxel_values, full_indices, output_device=output_device)
 
         return sinogram
@@ -632,8 +635,13 @@ class TomographyModel(ParameterHandler):
         """
         recon_shape = self.get_params('recon_shape')
         full_indices = mj.gen_full_indices(recon_shape, use_ror_mask=self.use_ror_mask)
-        output_device = self.main_device
+        output_device = self.sinogram_device
         recon_cylinder = self.sparse_back_project(sinogram, full_indices, output_device=output_device)
+        # Move full_indices to output_device before unravel_index so that row_index/col_index
+        # are on the same device as recon.  Without this, gen_full_indices places indices on
+        # the default GPU device; when output_device is CPU (sharding mode), the mixed-device
+        # scatter recon.at[...].set(...) causes JAX to materialise the full recon on GPU, OOMing.
+        full_indices = jax.device_put(full_indices, self.replicated_device)
         row_index, col_index = jnp.unravel_index(full_indices, recon_shape[:2])
         recon = jnp.zeros(recon_shape, device=output_device)
         recon = recon.at[row_index, col_index].set(recon_cylinder)

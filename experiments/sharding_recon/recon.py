@@ -120,9 +120,9 @@ if __name__ == "__main__":
         num_det_channels = int(sys.argv[3])
         output_filepath = sys.argv[4]
     except:
-        num_views = 904
-        num_det_rows = 1496
-        num_det_channels = 1800
+        num_views = 1792
+        num_det_rows = 1792
+        num_det_channels = 1792
         output_filepath = "logs/recon_mem.txt"
 
     create_recon_data(num_views, num_det_rows, num_det_channels)

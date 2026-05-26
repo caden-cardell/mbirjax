@@ -963,6 +963,14 @@ class ConeBeamModel(TomographyModel):
         print("Starting FDK back projections")
         recon = self.back_project(filtered_sinogram)
 
+        # In sharding mode the filtered sinogram (~21 GiB across 2 GPUs) must be freed
+        # before vcd_recon calls forward_project.  Python's del drops the reference but
+        # JAX's async dispatch queue can keep the XLA buffer alive; effects_barrier()
+        # flushes the queue so the GPU memory is actually reclaimed before returning.
+        if self.use_gpu == 'sharding':
+            del filtered_sinogram
+            jax.effects_barrier()
+
         print("Done FDK recon")
         return recon
 

@@ -7,6 +7,7 @@ from .cone_beam import *
 from .denoising import *
 from .vcd_utils import *
 from .memory_stats import *
+from .memory_tracker import tracker, MemoryTracker
 from .utilities import *
 from .viewer import *
 from . import preprocess
