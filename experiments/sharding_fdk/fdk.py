@@ -56,7 +56,7 @@ def create_fdk_data(num_views, num_det_rows, num_det_channels):
         f.attrs["params"] = ct_model_for_generation.to_file(None)
 
 
-def fdk(num_views, num_det_rows, num_det_channels, output_filepath='output.csv'):
+def fdk_filter(num_views, num_det_rows, num_det_channels, output_filepath='output.csv'):
 
     output_directory = f"/scratch/gautschi/ncardel/recon_mem"
     h5_path = f"{output_directory}/cone_{num_views}_{num_det_rows}_{num_det_channels}_projection_data.h5"
@@ -108,6 +108,59 @@ def fdk(num_views, num_det_rows, num_det_channels, output_filepath='output.csv')
         writer = csv.writer(f)
         writer.writerow(row)
 
+def fdk_recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv'):
+
+    output_directory = f"/scratch/gautschi/ncardel/recon_mem"
+    h5_path = f"{output_directory}/cone_{num_views}_{num_det_rows}_{num_det_channels}_projection_data.h5"
+    with h5py.File(h5_path, "r") as f:
+        sinogram = f["sinogram"][:]
+        params = f.attrs["params"]
+
+    filter_model = mj.ConeBeamModel.from_file(params)
+
+    print("\nTEST PARAMS:")
+    transfer_pixel_batch_size = filter_model.transfer_pixel_batch_size
+    print("Transfer pixel batch size:", transfer_pixel_batch_size)
+    try:
+        print("Device set:", filter_model.sinogram_device.device_set)
+    except:
+        pass
+
+    print("\nGPU STARTING MEMORY STATS:")
+    mj.get_memory_stats()
+
+    print("\nSTARTING FDK:")
+    filter_model.set_params(use_gpu="automatic")
+    time0 = time.time()
+    sinogram = jax.device_put(sinogram, device=filter_model.sinogram_device)
+    fdk_recon = filter_model.fdk_recon(sinogram)
+    mj.slice_viewer(fdk_recon, title='FDK recon.')
+
+    elapsed = time.time() - time0
+
+    print('\nELAPSED TIME: {:.3f} seconds'.format(elapsed))
+
+    print("\nGPU FINAL MEMORY STATS:")
+    mem_stats = mj.get_memory_stats()
+
+    num_gpus = 4
+    gpu_col_names = [f'gpu{i}_peak_bytes' for i in range(num_gpus)]
+
+    # if the output file doesn't exist then create it
+    print("output_filepath:", output_filepath)
+    os.makedirs(os.path.dirname(output_filepath) or ".", exist_ok=True)
+    if not os.path.exists(output_filepath):
+        with open(output_filepath, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(['num_views', 'num_det_rows', 'num_det_channels', 'elapsed_seconds', 'transfer_pixel_batch_size'] + gpu_col_names)
+
+    # append this test data to the output file
+    row = [num_views, num_det_rows, num_det_channels, round(elapsed, 3), filter_model.transfer_pixel_batch_size] + [mem_stats[i]['peak_bytes_in_use'] for i in range(min(num_gpus, len(mem_stats)))]
+    with open(output_filepath, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(row)
+
+
 if __name__ == "__main__":
 
     try:
@@ -116,10 +169,10 @@ if __name__ == "__main__":
         num_det_channels = int(sys.argv[3])
         output_filepath = sys.argv[4]
     except:
-        num_views = 2048
-        num_det_rows = 2048
-        num_det_channels = 2048
+        num_views = 1792
+        num_det_rows = 1792
+        num_det_channels = 1792
         output_filepath = "logs/recon_mem.txt"
 
     create_fdk_data(num_views, num_det_rows, num_det_channels)
-    fdk(num_views, num_det_rows, num_det_channels, output_filepath=output_filepath)
+    fdk_recon(num_views, num_det_rows, num_det_channels, output_filepath=output_filepath)
