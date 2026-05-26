@@ -643,8 +643,12 @@ class TomographyModel(ParameterHandler):
         # scatter recon.at[...].set(...) causes JAX to materialise the full recon on GPU, OOMing.
         full_indices = jax.device_put(full_indices, self.replicated_device)
         row_index, col_index = jnp.unravel_index(full_indices, recon_shape[:2])
+        del full_indices
         recon = jnp.zeros(recon_shape, device=output_device)
         recon = recon.at[row_index, col_index].set(recon_cylinder)
+        del recon_cylinder, row_index, col_index
+        if self.use_gpu == 'sharding':
+            jax.effects_barrier()
         return recon
 
     def sparse_forward_project_sharded(self, voxel_values, pixel_indices, output_device=None):
@@ -674,7 +678,18 @@ class TomographyModel(ParameterHandler):
         view_indices = jnp.arange(0, num_views)[:, None]
         view_indices = jax.device_put(view_indices, device=self.sinogram_device)
 
+        from mbirjax.memory_tracker import tracker as _t
+        num_batches = len(pixel_batch_boundaries) - 1
+        print(f'\n[fwd_project_sharded] entering pixel-batch loop: {num_batches} batches, '
+              f'pixel_batch_size={transfer_pixel_batch_size}, num_pixels={num_pixels}')
+        _t.track(sinogram_views, 'sinogram_views@fwd_sharded:pre_loop')
+        _t.track(voxel_values,   'voxel_values@fwd_sharded:pre_loop')
+        _t.track(pixel_indices,  'pixel_indices@fwd_sharded:pre_loop')
+        _t.snapshot('fwd_sharded:pre_loop')
+        _t.live_report(min_bytes=100*1024*1024)
+
         # Loop over pixel batches
+        import gc
         for k, pixel_index_start in enumerate(pixel_batch_boundaries[:-1]):
             # Send a batch of pixels to worker
             pixel_index_end = pixel_batch_boundaries[k + 1]
@@ -684,9 +699,31 @@ class TomographyModel(ParameterHandler):
                                                               self.replicated_device)
 
             sinogram_views = sinogram_views.block_until_ready()
+            jax.effects_barrier()
+
+            if k == 0:
+                print(f'\n[fwd_project_sharded] before sparse_forward_project (batch 0):')
+                _t.track(voxel_batch,     'voxel_batch@fwd_sharded:batch0_pre')
+                _t.track(pixel_index_batch, 'pixel_index_batch@fwd_sharded:batch0_pre')
+                _t.snapshot('fwd_sharded:batch0_pre_project')
+                _t.live_report(min_bytes=100*1024*1024)
+
             sinogram_views = self.projector_functions.sparse_forward_project(voxel_batch, pixel_index_batch,
                                                                              existing_views=sinogram_views,
                                                                              view_indices=view_indices)
+
+            sinogram_views.block_until_ready()
+            jax.effects_barrier()
+            if k == 0:
+                print(f'\n[fwd_project_sharded] after sparse_forward_project (batch 0):')
+                _t.track(sinogram_views, 'sinogram_views@fwd_sharded:batch0_post')
+                _t.snapshot('fwd_sharded:batch0_post_project')
+                _t.live_report(min_bytes=100*1024*1024)
+
+            del voxel_batch
+            del pixel_index_batch
+            gc.collect()
+            jax.clear_caches()
         return sinogram_views
 
 
@@ -784,6 +821,7 @@ class TomographyModel(ParameterHandler):
             voxel_batch_list.append(jax.device_put(voxel_batch, output_device))
 
         recon_at_indices = jnp.concatenate(voxel_batch_list, axis=0)
+        del voxel_batch_list
         return recon_at_indices
 
     def sparse_back_project(self, sinogram, pixel_indices, view_indices=None, coeff_power=1, output_device=None):
@@ -1340,6 +1378,13 @@ class TomographyModel(ParameterHandler):
         # Initialize VCD recon and error sinogram using the init_recon
         # We find the optimal alpha to minimize (1/2)||y - alpha Ax||_weights^2, where y is the sinogram and x is init_recon
         self.logger.info('Initializing error sinogram')
+        from mbirjax.memory_tracker import tracker as _t
+        _t.track(sinogram,   'sinogram@vcd_recon:pre_fwd')
+        _t.track(init_recon, 'init_recon@vcd_recon:pre_fwd')
+        if not constant_weights and isinstance(weights, jax.Array):
+            _t.track(weights, 'weights@vcd_recon:pre_fwd')
+        _t.snapshot('vcd_recon:before_forward_project')
+        _t.dump(only_live=True, sort_by='size')
         error_sinogram = self.forward_project(init_recon)
         if not constant_weights:
             weighted_error_sinogram = weights * error_sinogram  # Note that fm_constant will be included below

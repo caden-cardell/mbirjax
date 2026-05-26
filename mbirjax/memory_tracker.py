@@ -291,7 +291,7 @@ class MemoryTracker:
                 # Python object alive but JAX buffer was freed (unusual).
                 status = "DEAD?"
 
-            if only_live and not is_live:
+            if only_live and not ptr_in_live:
                 continue
 
             shown += 1

@@ -864,7 +864,10 @@ class ConeBeamModel(TomographyModel):
         # Re-shard the finished CPU array to GPUs for downstream use.
         filtered = jax.device_put(filtered_np, self.sinogram_device)
         del filtered_np
-        return filtered * (jnp.pi / num_views)
+        filtered_scaled = filtered * (jnp.pi / num_views)
+        from mbirjax.memory_tracker import tracker as _t
+        _t.track(filtered_scaled, 'filtered_sinogram@fdk_filter_sharding')
+        return filtered_scaled
 
     def fdk_filter(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
         """
@@ -956,20 +959,35 @@ class ConeBeamModel(TomographyModel):
         Returns:
             recon (jax array): The reconstructed volume after FDK reconstruction.
         """
+        from mbirjax.memory_tracker import tracker as _t
+        _t.track(sinogram, 'sinogram@fdk_recon:entry')
+        _t.snapshot('fdk_recon:entry')
+
         print("Starting FDK filtering")
         filtered_sinogram = self.fdk_filter(sinogram, filter_name=filter_name, view_batch_size=view_batch_size)
 
         # Apply backprojection
         print("Starting FDK back projections")
         recon = self.back_project(filtered_sinogram)
+        _t.track(recon, 'recon@fdk_recon:post_backproject')
+        _t.snapshot('fdk_recon:before_del')
 
         # In sharding mode the filtered sinogram (~21 GiB across 2 GPUs) must be freed
         # before vcd_recon calls forward_project.  Python's del drops the reference but
         # JAX's async dispatch queue can keep the XLA buffer alive; effects_barrier()
         # flushes the queue so the GPU memory is actually reclaimed before returning.
+        # gc.collect() is required to break the cyclic reference between the top-level
+        # sharded Array and its per-device shard Arrays (_arrays), which CPython's
+        # reference-count alone cannot free.  jax.clear_caches() drops any compiled-
+        # function trace that captured the filtered-sinogram shard buffers as inputs.
         if self.use_gpu == 'sharding':
             del filtered_sinogram
+            import gc
+            gc.collect()
+            jax.clear_caches()
             jax.effects_barrier()
+            _t.snapshot('fdk_recon:after_del')
+            _t.live_report(min_bytes=100*1024*1024)  # show all live arrays >= 100 MB
 
         print("Done FDK recon")
         return recon
