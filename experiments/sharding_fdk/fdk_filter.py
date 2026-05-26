@@ -135,7 +135,7 @@ class FDK:
         alpha = delta_det_row / (delta_voxel**3 * M_0)
         recon_filter = alpha * jax.device_put(recon_filter, self.replicated_device)
 
-        row_batch_size = 50 #min(num_rows, self.entries_per_cylinder_batch)
+        row_batch_size = min(num_rows, self.entries_per_cylinder_batch)
 
         # Round up to multiple of num_gpus so the chunk shards evenly
         num_gpus = len(jax.devices('gpu'))
@@ -147,9 +147,7 @@ class FDK:
                 return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
             def apply_weight_and_convolve(view):
                 return jax.lax.map(convolve_row, view * weight_map, batch_size=row_batch_size)
-                # return jax.lax.map(convolve_row, view * weight_map)
-            return jax.lax.map(apply_weight_and_convolve, chunk, batch_size=8)
-            return jax.lax.map(apply_weight_and_convolve, chunk)
+            return jax.lax.map(apply_weight_and_convolve, chunk, batch_size=num_gpus)
 
         # Accumulate results on CPU to avoid holding two 32 GiB arrays on GPU.
         # dynamic_update_slice on a sharded array forces XLA to treat the full

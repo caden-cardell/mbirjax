@@ -56,7 +56,7 @@ def create_fdk_data(num_views, num_det_rows, num_det_channels):
         f.attrs["params"] = ct_model_for_generation.to_file(None)
 
 
-def recon(num_views, num_det_rows, num_det_channels, output_filepath='output.csv'):
+def fdk(num_views, num_det_rows, num_det_channels, output_filepath='output.csv'):
 
     output_directory = f"/scratch/gautschi/ncardel/recon_mem"
     h5_path = f"{output_directory}/cone_{num_views}_{num_det_rows}_{num_det_channels}_projection_data.h5"
@@ -116,10 +116,10 @@ if __name__ == "__main__":
         num_det_channels = int(sys.argv[3])
         output_filepath = sys.argv[4]
     except:
-        num_views = 1792
-        num_det_rows = 1792
-        num_det_channels = 1792
+        num_views = 2048
+        num_det_rows = 2048
+        num_det_channels = 2048
         output_filepath = "logs/recon_mem.txt"
 
     create_fdk_data(num_views, num_det_rows, num_det_channels)
-    recon(num_views, num_det_rows, num_det_channels, output_filepath=output_filepath)
+    fdk(num_views, num_det_rows, num_det_channels, output_filepath=output_filepath)
