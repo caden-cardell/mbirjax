@@ -10,7 +10,20 @@ module load conda
 
 conda activate mbirjax
 
-for ((size=256; size<65536; size+=256)); do
-  echo "Filtering sinogram with shape (256, $size, 256)"
-  python fdk_filter.py "$size"
+for ((views=512; views<65536; views+=512)); do
+  echo ""
+  echo "Filtering sinogram with shape ($views, 512, 512)"
+  python fdk_filter.py "$views" 512 512 || break
+done
+
+for ((rows=512; rows<65536; rows+=512)); do
+  echo ""
+  echo "Filtering sinogram with shape (512, $rows, 512)"
+  python fdk_filter.py 512 "$rows" 512 || break
+done
+
+for ((channels=512; channels<65536; channels+=512)); do
+  echo ""
+  echo "Filtering sinogram with shape (512, 512, $channels)"
+  python fdk_filter.py 512 512 "$channels" || break
 done

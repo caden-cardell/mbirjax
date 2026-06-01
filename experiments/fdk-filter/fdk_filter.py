@@ -1,7 +1,10 @@
 import sys, os, time
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+import jax
 import jax.numpy as jnp
 import mbirjax as mj
+
+output_filename = "logs/fdk_filter_results.csv"
 
 def fdk(sinogram_shape):
 
@@ -21,7 +24,7 @@ def fdk(sinogram_shape):
                                  source_iso_dist=source_iso_dist)
 
     # create sinogram
-    print("\nsinogram shape:", sinogram_shape)
+    print("sinogram shape:", sinogram_shape)
     sinogram = jnp.full(sinogram_shape, 2)
 
     # perform filtering
@@ -42,20 +45,33 @@ def fdk(sinogram_shape):
 if __name__ == "__main__":
 
     try:
+        num_views = int(sys.argv[1])
+        num_det_rows = int(sys.argv[2])
+        num_det_channels = int(sys.argv[3])
+    except IndexError:
         num_views = 256
-        num_det_rows = int(sys.argv[1])
+        num_det_rows = 256
         num_det_channels = 256
+        print(f"WARNING! Missing params defaulting to sinogram shape ({num_views}, {num_det_rows}, {num_det_channels})")
 
-        time, bytes = fdk((num_views, num_det_rows, num_det_channels))
+    # if output file doesn't exist create it and add header line
+    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    if not os.path.exists(output_filename):
+        with open(output_filename, "a") as f:
+            f.write("views,rows,channels,time,bytes\n")
 
-        # save to file with colums 0 = size, column 1 = time, column 2 = bytes
+    # run filter and record an OOM error if it occurs
+    try:
+        elapsed_time, peak_bytes = fdk((num_views, num_det_rows, num_det_channels))
+    except jax.errors.JaxRuntimeError as e:
+        if "RESOURCE_EXHAUSTED" in str(e):
+            print(f"Out of memory for shape ({num_views}, {num_det_rows}, {num_det_channels})")
+            with open(output_filename, "a") as f:
+                f.write(f"{num_views},{num_det_rows},{num_det_channels},0,0\n")
+            raise e
+        raise
 
-    except:
+    # save successful filter to file
+    with open(output_filename, "a") as f:
+        f.write(f"{num_views},{num_det_rows},{num_det_channels},{elapsed_time},{peak_bytes}\n")
 
-        for size in range(256, 65_536, 256):
-
-            try:
-                fdk((size, 1024, 1024))
-            except:
-                print(f"Failed as size: {size}")
-                exit(0)
