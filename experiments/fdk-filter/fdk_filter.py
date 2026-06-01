@@ -42,11 +42,13 @@ def fdk(sinogram_shape):
 if __name__ == "__main__":
 
     try:
-        num_views = int(sys.argv[1])
-        num_det_rows = int(sys.argv[2])
-        num_det_channels = int(sys.argv[3])
+        num_views = 256
+        num_det_rows = int(sys.argv[1])
+        num_det_channels = 256
 
-        fdk((num_views, num_det_rows, num_det_channels))
+        time, bytes = fdk((num_views, num_det_rows, num_det_channels))
+
+        # save to file with colums 0 = size, column 1 = time, column 2 = bytes
 
     except:
 
