@@ -9,7 +9,7 @@ with open('logs/fdk_filter_results.csv') as f:
         if int(row['views']) == 512 and int(row['channels']) == 512:
             rows.append(int(row['rows']))
             time.append(float(row['time']))
-            gb.append(int(row['bytes']) / 1e9)
+            gb.append(int(row['bytes']) / 1024**3)
 
 paired = sorted(zip(rows, time, gb))
 rows, time, gb = zip(*paired)

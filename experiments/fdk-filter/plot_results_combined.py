@@ -8,9 +8,9 @@ def load_data(filter_fn):
         for row in reader:
             v, r, c = int(row['views']), int(row['rows']), int(row['channels'])
             if filter_fn(v, r, c):
-                sino_gb.append(v * r * c * 4 / 1e9)
+                sino_gb.append(v * r * c * 4 / 1024**3)
                 time.append(float(row['time']))
-                gb.append(int(row['bytes']) / 1e9)
+                gb.append(int(row['bytes']) / 1024**3)
     paired = sorted(zip(sino_gb, time, gb))
     sino_gb, time, gb = zip(*paired)
     return sino_gb, time, gb
