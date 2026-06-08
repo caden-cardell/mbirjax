@@ -999,7 +999,7 @@ class ConeBeamModel(TomographyModel):
         filtered_scaled = filtered * (jnp.pi / num_views)
         return filtered_scaled
 
-    def fdk_filter_new(self, sinogram, filter_name="ramp", view_chunk_size=None):
+    def fdk_filter_new(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
         """
         Perform FDK filtering on the given sinogram.
 
@@ -1036,54 +1036,48 @@ class ConeBeamModel(TomographyModel):
         alpha = delta_det_row / (delta_voxel ** 3 * M_0)
         recon_filter = alpha * jax.device_put(recon_filter, self.sinogram_device)
 
-        row_batch_size = 50  # min(num_rows, self.entries_per_cylinder_batch)
-
-        num_gpus = len(jax.devices('gpu'))
-        if view_chunk_size is None:
-            view_chunk_size = num_gpus * 32
-        # Round up to multiple of num_gpus so the chunk shards evenly
-        view_chunk_size = max(num_gpus, ((view_chunk_size + num_gpus - 1) // num_gpus) * num_gpus)
-
         @jax.jit
-        def process_chunk(chunk):
+        def process_view_batch(view_batch):
             def convolve_row(row):
                 return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
 
             def apply_weight_and_convolve(view):
-                return jax.lax.map(convolve_row, view * weight_map, batch_size=row_batch_size)
+                return jax.lax.map(convolve_row, view * weight_map)
 
-            return jax.lax.map(apply_weight_and_convolve, chunk, batch_size=4)
+            return jax.lax.map(apply_weight_and_convolve, view_batch, batch_size=4)
 
-        # donate_argnums=(0,) lets XLA reuse the output buffer in-place — no full copy
         @jax.jit(donate_argnums=(0,))
-        def write_chunk(output, update, start):
+        def write_view_batch(output, update, start):
             return jax.lax.dynamic_update_slice(output, update, (start, 0, 0))
-
-        @jax.jit(donate_argnums=(0,))
-        def scale(arr, factor):
-            return arr * factor
 
         # np.zeros on CPU + device_put shards each slice directly to its GPU —
         # no single device ever holds the full array.
         filtered = jax.device_put(np.zeros(sinogram.shape, dtype=np.float32), self.sinogram_device)
 
-        for start in range(0, num_views, view_chunk_size):
-            end = min(start + view_chunk_size, num_views)
-            chunk_views = end - start
+        for start in range(0, num_views, view_batch_size):
+            end = min(start + view_batch_size, num_views)
+            num_view_in_batch = end - start
 
-            chunk = sinogram[start:end]
-            if chunk_views < view_chunk_size:
-                chunk = jnp.pad(chunk, ((0, view_chunk_size - chunk_views), (0, 0), (0, 0)))
+            next_view_batch = sinogram[start:end]
+            if num_view_in_batch < view_batch_size:
+                next_view_batch = jnp.pad(next_view_batch, ((0, view_batch_size - num_view_in_batch), (0, 0), (0, 0)))
 
-            result = process_chunk(chunk)
-            result.block_until_ready()
-            del chunk
+            filtered_view_batch = process_view_batch(next_view_batch)
+            filtered_view_batch.block_until_ready()
+            del next_view_batch
 
-            update = result if chunk_views == view_chunk_size else result[:chunk_views]
-            filtered = write_chunk(filtered, update, jnp.array(start, dtype=jnp.int32))
-            del result
+            # remove padding if needed
+            if num_view_in_batch != view_batch_size:
+                filtered_view_batch = filtered_view_batch[:num_view_in_batch]
 
-        return scale(filtered, jnp.pi / num_views)
+            filtered = write_view_batch(filtered, filtered_view_batch, jnp.array(start, dtype=jnp.int32))
+            del filtered_view_batch
+
+        @jax.jit(donate_argnums=(0,))
+        def scale_sinogram_in_place(arr, factor):
+            return arr * factor
+
+        return scale_sinogram_in_place(filtered, jnp.pi / num_views)
 
     def fdk_recon(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
         """
