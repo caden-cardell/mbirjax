@@ -921,6 +921,170 @@ class ConeBeamModel(TomographyModel):
         filtered_sinogram *= jnp.pi / num_views
         return filtered_sinogram
 
+    def fdk_filter_bad(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
+        """
+        Perform FDK filtering on the given sinogram.
+
+        Args:
+            sinogram (jax array): The input sinogram with shape (num_views, num_rows, num_channels).
+            filter_name (string, optional): Name of the filter to be used. Defaults to "ramp"
+            view_batch_size (int, optional):  Size of view batches (used to limit memory use)
+
+        Returns:
+            filtered_sinogram (jax array): The sinogram after FDK filtering.
+        """
+        print("FDK FILTER NEW")
+
+        # Get parameters
+        source_detector_dist, source_iso_dist = self.get_params(['source_detector_dist', 'source_iso_dist'])
+        delta_voxel = self.get_params(['delta_voxel'])
+        delta_det_row, delta_det_channel = self.get_params(['delta_det_row', 'delta_det_channel'])
+        det_row_offset, det_channel_offset = self.get_params(['det_row_offset', 'det_channel_offset'])
+
+        num_views, num_rows, num_channels = sinogram.shape
+
+        M_0 = self.get_magnification()
+
+        m = jnp.arange(num_rows)
+        n = jnp.arange(num_channels)
+        m_grid, n_grid = jnp.meshgrid(m, n, indexing='ij')
+
+        u_grid, v_grid = self.detector_mn_to_uv(m_grid, n_grid, delta_det_channel, delta_det_row,
+                                                det_channel_offset, det_row_offset, num_rows, num_channels)
+
+        weight_map = source_detector_dist / jnp.sqrt(source_detector_dist ** 2 + u_grid ** 2 + v_grid ** 2)
+        weight_map = jax.device_put(weight_map, self.sinogram_device)
+
+        recon_filter = tomography_utils.generate_direct_recon_filter(num_channels, filter_name=filter_name)
+        alpha = delta_det_row / (delta_voxel ** 3 * M_0)
+        recon_filter = alpha * jax.device_put(recon_filter, self.sinogram_device)
+
+        row_batch_size = min(num_rows, self.entries_per_cylinder_batch)
+
+        # Round up to multiple of num_gpus so the chunk shards evenly
+        num_gpus = len(jax.devices('gpu'))
+
+        @jax.jit
+        def process_view_batch(view_batch):
+            def convolve_row(row):
+                return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
+
+            def apply_weight_and_convolve(view):
+                return jax.lax.map(convolve_row, view * weight_map, batch_size=row_batch_size)
+
+            return jax.lax.map(apply_weight_and_convolve, view_batch, batch_size=num_gpus)
+
+        filtered_np = jnp.zeros(sinogram.shape, device=sinogram.device)
+
+        for start in range(0, num_views, view_batch_size):
+            end = min(start + view_batch_size, num_views)
+            chunk_views = end - start
+
+            view_batch = sinogram[start:end]
+            if chunk_views < view_batch_size:
+                view_batch = jnp.pad(view_batch, ((0, view_batch_size - chunk_views), (0, 0), (0, 0)))
+
+            result = process_view_batch(view_batch)
+            result.block_until_ready()
+            del view_batch
+
+            # Copy the relevant views back to CPU numpy — avoids a sharded
+            # dynamic_update_slice and keeps peak GPU memory to one chunk.
+            filtered_np[start:end] = np.array(result[:chunk_views] if chunk_views < view_batch_size else result)
+            del result
+
+        # Re-shard the finished CPU array to GPUs for downstream use.
+        filtered = jax.device_put(filtered_np, self.sinogram_device)
+        del filtered_np
+        filtered_scaled = filtered * (jnp.pi / num_views)
+        return filtered_scaled
+
+    def fdk_filter_new(self, sinogram, filter_name="ramp", view_chunk_size=None):
+        """
+        Perform FDK filtering on the given sinogram.
+
+        Args:
+            sinogram (jax array): The input sinogram with shape (num_views, num_rows, num_channels).
+            filter_name (string, optional): Name of the filter to be used. Defaults to "ramp"
+            view_batch_size (int, optional):  Size of view batches (used to limit memory use)
+
+        Returns:
+            filtered_sinogram (jax array): The sinogram after FDK filtering.
+        """
+
+        # Get parameters
+        source_detector_dist, source_iso_dist = self.get_params(['source_detector_dist', 'source_iso_dist'])
+        delta_voxel, delta_det_row, delta_det_channel = self.get_params(
+            ['delta_voxel', 'delta_det_row', 'delta_det_channel'])
+        det_row_offset, det_channel_offset = self.get_params(['det_row_offset', 'det_channel_offset'])
+
+        num_views, num_rows, num_channels = sinogram.shape
+
+        M_0 = self.get_magnification()
+
+        m = jnp.arange(num_rows)
+        n = jnp.arange(num_channels)
+        m_grid, n_grid = jnp.meshgrid(m, n, indexing='ij')
+
+        u_grid, v_grid = self.detector_mn_to_uv(m_grid, n_grid, delta_det_channel, delta_det_row,
+                                                det_channel_offset, det_row_offset, num_rows, num_channels)
+
+        weight_map = source_detector_dist / jnp.sqrt(source_detector_dist ** 2 + u_grid ** 2 + v_grid ** 2)
+        weight_map = jax.device_put(weight_map, self.sinogram_device)
+
+        recon_filter = tomography_utils.generate_direct_recon_filter(num_channels, filter_name=filter_name)
+        alpha = delta_det_row / (delta_voxel ** 3 * M_0)
+        recon_filter = alpha * jax.device_put(recon_filter, self.sinogram_device)
+
+        row_batch_size = 50  # min(num_rows, self.entries_per_cylinder_batch)
+
+        num_gpus = len(jax.devices('gpu'))
+        if view_chunk_size is None:
+            view_chunk_size = num_gpus * 32
+        # Round up to multiple of num_gpus so the chunk shards evenly
+        view_chunk_size = max(num_gpus, ((view_chunk_size + num_gpus - 1) // num_gpus) * num_gpus)
+
+        @jax.jit
+        def process_chunk(chunk):
+            def convolve_row(row):
+                return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
+
+            def apply_weight_and_convolve(view):
+                return jax.lax.map(convolve_row, view * weight_map, batch_size=row_batch_size)
+
+            return jax.lax.map(apply_weight_and_convolve, chunk, batch_size=4)
+
+        # donate_argnums=(0,) lets XLA reuse the output buffer in-place — no full copy
+        @jax.jit(donate_argnums=(0,))
+        def write_chunk(output, update, start):
+            return jax.lax.dynamic_update_slice(output, update, (start, 0, 0))
+
+        @jax.jit(donate_argnums=(0,))
+        def scale(arr, factor):
+            return arr * factor
+
+        # np.zeros on CPU + device_put shards each slice directly to its GPU —
+        # no single device ever holds the full array.
+        filtered = jax.device_put(np.zeros(sinogram.shape, dtype=np.float32), self.sinogram_device)
+
+        for start in range(0, num_views, view_chunk_size):
+            end = min(start + view_chunk_size, num_views)
+            chunk_views = end - start
+
+            chunk = sinogram[start:end]
+            if chunk_views < view_chunk_size:
+                chunk = jnp.pad(chunk, ((0, view_chunk_size - chunk_views), (0, 0), (0, 0)))
+
+            result = process_chunk(chunk)
+            result.block_until_ready()
+            del chunk
+
+            update = result if chunk_views == view_chunk_size else result[:chunk_views]
+            filtered = write_chunk(filtered, update, jnp.array(start, dtype=jnp.int32))
+            del result
+
+        return scale(filtered, jnp.pi / num_views)
+
     def fdk_recon(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
         """
         Perform FDK reconstruction on the given sinogram.
