@@ -1038,20 +1038,20 @@ class ConeBeamModel(TomographyModel):
         recon_filter = alpha * recon_filter
 
         @jax.jit
-        def process_view_batch(view_batch):
+        def filter_view_batch(view_batch):
             def convolve_row(row):
                 return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
 
-            def apply_weight_map_and_convolve(view):
-                return jax.lax.map(convolve_row, view * weight_map, batch_size=1)
+            def apply_weight_map_and_convolve_with_filter(view):
+                return jax.lax.map(convolve_row, view * weight_map)
 
-            return jax.lax.map(apply_weight_map_and_convolve, view_batch, batch_size=1)
+            return jax.lax.map(apply_weight_map_and_convolve_with_filter, view_batch, batch_size=view_batch_size)
 
         @jax.jit(donate_argnums=(0,))
-        def write_view_batch(output, update, start):
+        def update_view_batch_in_place(output, update, start):
             return jax.lax.dynamic_update_slice(output, update, (start, 0, 0))
 
-        # initialize the memory for the filtered sinogram, this will be updated in place
+        # Initialize the memory for the filtered sinogram, this will be updated in place
         filtered_sinogram = jax.device_put(np.zeros(sinogram.shape, dtype=np.float32), self.sinogram_device)
 
         # loop through view batches
@@ -1061,13 +1061,13 @@ class ConeBeamModel(TomographyModel):
             end = min(start + view_batch_size, num_views)
             next_view_batch = sinogram[start:end]
 
-            # pad views is there are not enough in the batch
+            # pad view batch if there are not enough views
             num_view_in_batch = end - start
             if num_view_in_batch < view_batch_size:
                 next_view_batch = jnp.pad(next_view_batch, ((0, view_batch_size - num_view_in_batch), (0, 0), (0, 0)))
 
             # perform fdk filtering
-            filtered_view_batch = process_view_batch(next_view_batch)
+            filtered_view_batch = filter_view_batch(next_view_batch)
             filtered_view_batch.block_until_ready()
             del next_view_batch
 
@@ -1076,7 +1076,7 @@ class ConeBeamModel(TomographyModel):
                 filtered_view_batch = filtered_view_batch[:num_view_in_batch]
 
             # update the filtered sinogram in place
-            filtered_sinogram = write_view_batch(filtered_sinogram, filtered_view_batch, jnp.array(start, dtype=jnp.int32))
+            filtered_sinogram = update_view_batch_in_place(filtered_sinogram, filtered_view_batch, jnp.array(start, dtype=jnp.int32))
             del filtered_view_batch
 
         @jax.jit(donate_argnums=(0,))
