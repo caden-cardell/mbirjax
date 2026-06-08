@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 def load_data(filter_fn):
     sino_gb, time, gb = [], [], []
-    with open('logs/fdk_filter_results.csv') as f:
+    with open('output/fdk_filter_results.csv') as f:
         reader = csv.DictReader(f)
         for row in reader:
             v, r, c = int(row['views']), int(row['rows']), int(row['channels'])

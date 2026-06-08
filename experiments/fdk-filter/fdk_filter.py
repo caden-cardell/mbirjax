@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import mbirjax as mj
 
-output_filename = "logs/fdk_filter_results.csv"
+output_filename = "output/fdk_filter_results.csv"
 
 def fdk(sinogram_shape):
 
