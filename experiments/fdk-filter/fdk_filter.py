@@ -49,9 +49,11 @@ if __name__ == "__main__":
         num_det_rows = int(sys.argv[2])
         num_det_channels = int(sys.argv[3])
     except IndexError:
-        num_views = 256
-        num_det_rows = 256
-        num_det_channels = 256
+
+        # 512,512,8192
+        num_views = 512
+        num_det_rows = 512
+        num_det_channels = 8192
         print(f"WARNING! Missing params defaulting to sinogram shape ({num_views}, {num_det_rows}, {num_det_channels})")
 
     # if output file doesn't exist create it and add header line

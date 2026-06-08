@@ -29,5 +29,5 @@ ax2.set_title('GB vs Views (rows=512, channels=512)')
 ax2.grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('logs/fdk_filter_512_512.png', dpi=150)
+plt.savefig('logs/fdk_filter_rows512_channels512.png', dpi=150)
 print(f"Saved to logs/fdk_filter_512_512.png ({len(views)} data points)")
