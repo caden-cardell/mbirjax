@@ -1,0 +1,64 @@
+Filtering sinogram with new method with shape (512, 41472, 512)
+/home/ncardel/repos/mbirjax/mbirjax/viewer.py:16: UserWarning: TkAgg not available for matplotlib. slice_viewer menus may not display correctly.
+  warnings.warn("TkAgg not available for matplotlib. slice_viewer menus may not display correctly.")
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:260: UserWarning: MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.
+  warnings.warn('MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.')
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:269: UserWarning: CPU memory may be insufficient for this problem.  This may lead to a fatal error.
+  warnings.warn('CPU memory may be insufficient for this problem.  This may lead to a fatal error.')
+sinogram shape: (512, 41472, 512)
+W0608 17:24:30.687044 2935558 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 7.91GiB (rounded to 8493465600)requested by op
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation.
+Current allocation summary follows.
+Current allocation summary follows.
+W0608 17:24:30.687230 2935558 bfc_allocator.cc:513] ***********______**************************************************************************________*
+W0608 17:24:40.687452 2935558 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 7.91GiB (rounded to 8493465600)requested by op
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation.
+Current allocation summary follows.
+Current allocation summary follows.
+W0608 17:24:40.687548 2935558 bfc_allocator.cc:513] ***********______**************************************************************************________*
+W0608 17:24:50.687762 2935558 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 7.91GiB (rounded to 8493465600)requested by op
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation.
+Current allocation summary follows.
+Current allocation summary follows.
+W0608 17:24:50.687860 2935558 bfc_allocator.cc:513] ***********______**************************************************************************________*
+W0608 17:25:00.714426 2935562 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 7.91GiB (rounded to 8493465600)requested by op
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation.
+Current allocation summary follows.
+Current allocation summary follows.
+W0608 17:25:00.714583 2935562 bfc_allocator.cc:513] ***********______**************************************************************************________*
+W0608 17:25:10.714805 2935562 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 7.91GiB (rounded to 8493465600)requested by op
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation.
+Current allocation summary follows.
+Current allocation summary follows.
+W0608 17:25:10.714904 2935562 bfc_allocator.cc:513] ***********______**************************************************************************________*
+W0608 17:25:20.715117 2935562 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 7.91GiB (rounded to 8493465600)requested by op
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation.
+Current allocation summary follows.
+Current allocation summary follows.
+W0608 17:25:20.715222 2935562 bfc_allocator.cc:513] ***********______**************************************************************************________*
+E0608 17:25:20.715466 2935410 autotuner.cc:197] Failed to autotune HLO: %loop_multiply_fusion.1 = f32[41472,100,512]{2,1,0} fusion(%constant.29.0, %view_batch.1), kind=kLoop, calls=%fused_multiply.1, metadata={op_name="jit(filter_view_batch)/while/body/closed_call/vmap()/mul" stack_frame_id=15} with status: INTERNAL: Autotuning failed for HLO: %loop_multiply_fusion.1 = f32[41472,100,512]{2,1,0} fusion(%constant.29.0, %view_batch.1), kind=kLoop, calls=%fused_multiply.1, metadata={op_name="jit(filter_view_batch)/while/body/closed_call/vmap()/mul" stack_frame_id=15} with error: NOT_FOUND: No valid config found! Failures: 3
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+E0608 17:25:20.715734 2935410 autotuner.cc:197] Failed to autotune HLO: %wrapped_transpose = f32[100,41472,512]{2,1,0} fusion(%while.11.0), kind=kLoop, calls=%wrapped_transpose_computation, metadata={op_name="jit(filter_view_batch)/while/body/closed_call/vmap()/while" stack_frame_id=14} with status: INTERNAL: Autotuning failed for HLO: %wrapped_transpose = f32[100,41472,512]{2,1,0} fusion(%while.11.0), kind=kLoop, calls=%wrapped_transpose_computation, metadata={op_name="jit(filter_view_batch)/while/body/closed_call/vmap()/while" stack_frame_id=14} with error: NOT_FOUND: No valid config found! Failures: 3
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+Out of memory for shape (512, 41472, 512)
+Traceback (most recent call last):
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter-new/fdk_filter_new.py", line 73, in <module>
+    raise e
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter-new/fdk_filter_new.py", line 67, in <module>
+    elapsed_time, peak_bytes = fdk((num_views, num_det_rows, num_det_channels))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter-new/fdk_filter_new.py", line 32, in fdk
+    fdk_model.fdk_filter_new(sinogram)
+  File "/home/ncardel/repos/mbirjax/mbirjax/cone_beam.py", line 1070, in fdk_filter_new
+    filtered_view_batch = filter_view_batch(next_view_batch)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+jax.errors.JaxRuntimeError: INTERNAL: Failed to autotune: 2 out of 2 instructions. See logs for details.
+Autotuning failed for HLO: %loop_multiply_fusion.1 = f32[41472,100,512]{2,1,0} fusion(%constant.29.0, %view_batch.1), kind=kLoop, calls=%fused_multiply.1, metadata={op_name="jit(filter_view_batch)/while/body/closed_call/vmap()/mul" stack_frame_id=15} with error: NOT_FOUND: No valid config found! Failures: 3
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 7.91GiB. [tf-allocator-allocation-error='']
+--------------------

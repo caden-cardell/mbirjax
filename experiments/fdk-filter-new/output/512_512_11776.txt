@@ -1,0 +1,26 @@
+Filtering sinogram with new method with shape (512, 512, 11776)
+/home/ncardel/repos/mbirjax/mbirjax/viewer.py:16: UserWarning: TkAgg not available for matplotlib. slice_viewer menus may not display correctly.
+  warnings.warn("TkAgg not available for matplotlib. slice_viewer menus may not display correctly.")
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:260: UserWarning: MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.
+  warnings.warn('MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.')
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:269: UserWarning: CPU memory may be insufficient for this problem.  This may lead to a fatal error.
+  warnings.warn('CPU memory may be insufficient for this problem.  This may lead to a fatal error.')
+sinogram shape: (512, 512, 11776)
+Traceback (most recent call last):
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter-new/fdk_filter_new.py", line 67, in <module>
+    elapsed_time, peak_bytes = fdk((num_views, num_det_rows, num_det_channels))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter-new/fdk_filter_new.py", line 32, in fdk
+    fdk_model.fdk_filter_new(sinogram)
+  File "/home/ncardel/repos/mbirjax/mbirjax/cone_beam.py", line 1033, in fdk_filter_new
+    weight_map = source_detector_dist / jnp.sqrt(source_detector_dist ** 2 + u_grid ** 2 + v_grid ** 2)
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/numpy/array_methods.py", line 676, in _operator_radd
+    return ufuncs.add(cast(ArrayLike, other), self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/numpy/ufunc_api.py", line 182, in __call__
+    return call(*args)
+           ^^^^^^^^^^^
+OverflowError: An overflow was encountered while parsing an argument to a jitted computation, whose argument path is x. Got <class 'int'> with value 2218786816
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
