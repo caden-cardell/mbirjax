@@ -1022,6 +1022,7 @@ class ConeBeamModel(TomographyModel):
 
         M_0 = self.get_magnification()
 
+        # Create the weight map
         m = jnp.arange(num_rows)
         n = jnp.arange(num_channels)
         m_grid, n_grid = jnp.meshgrid(m, n, indexing='ij')
@@ -1030,38 +1031,42 @@ class ConeBeamModel(TomographyModel):
                                                 det_channel_offset, det_row_offset, num_rows, num_channels)
 
         weight_map = source_detector_dist / jnp.sqrt(source_detector_dist ** 2 + u_grid ** 2 + v_grid ** 2)
-        weight_map = jax.device_put(weight_map, self.sinogram_device)
 
+        # Create the filter
         recon_filter = tomography_utils.generate_direct_recon_filter(num_channels, filter_name=filter_name)
         alpha = delta_det_row / (delta_voxel ** 3 * M_0)
-        recon_filter = alpha * jax.device_put(recon_filter, self.sinogram_device)
+        recon_filter = alpha * recon_filter
 
         @jax.jit
         def process_view_batch(view_batch):
             def convolve_row(row):
                 return jax.scipy.signal.fftconvolve(row, recon_filter, mode="valid")
 
-            def apply_weight_and_convolve(view):
-                return jax.lax.map(convolve_row, view * weight_map)
+            def apply_weight_map_and_convolve(view):
+                return jax.lax.map(convolve_row, view * weight_map, batch_size=1)
 
-            return jax.lax.map(apply_weight_and_convolve, view_batch, batch_size=4)
+            return jax.lax.map(apply_weight_map_and_convolve, view_batch, batch_size=1)
 
         @jax.jit(donate_argnums=(0,))
         def write_view_batch(output, update, start):
             return jax.lax.dynamic_update_slice(output, update, (start, 0, 0))
 
-        # np.zeros on CPU + device_put shards each slice directly to its GPU —
-        # no single device ever holds the full array.
-        filtered = jax.device_put(np.zeros(sinogram.shape, dtype=np.float32), self.sinogram_device)
+        # initialize the memory for the filtered sinogram, this will be updated in place
+        filtered_sinogram = jax.device_put(np.zeros(sinogram.shape, dtype=np.float32), self.sinogram_device)
 
+        # loop through view batches
         for start in range(0, num_views, view_batch_size):
-            end = min(start + view_batch_size, num_views)
-            num_view_in_batch = end - start
 
+            # get the next batch of views
+            end = min(start + view_batch_size, num_views)
             next_view_batch = sinogram[start:end]
+
+            # pad views is there are not enough in the batch
+            num_view_in_batch = end - start
             if num_view_in_batch < view_batch_size:
                 next_view_batch = jnp.pad(next_view_batch, ((0, view_batch_size - num_view_in_batch), (0, 0), (0, 0)))
 
+            # perform fdk filtering
             filtered_view_batch = process_view_batch(next_view_batch)
             filtered_view_batch.block_until_ready()
             del next_view_batch
@@ -1070,14 +1075,15 @@ class ConeBeamModel(TomographyModel):
             if num_view_in_batch != view_batch_size:
                 filtered_view_batch = filtered_view_batch[:num_view_in_batch]
 
-            filtered = write_view_batch(filtered, filtered_view_batch, jnp.array(start, dtype=jnp.int32))
+            # update the filtered sinogram in place
+            filtered_sinogram = write_view_batch(filtered_sinogram, filtered_view_batch, jnp.array(start, dtype=jnp.int32))
             del filtered_view_batch
 
         @jax.jit(donate_argnums=(0,))
         def scale_sinogram_in_place(arr, factor):
             return arr * factor
 
-        return scale_sinogram_in_place(filtered, jnp.pi / num_views)
+        return scale_sinogram_in_place(filtered_sinogram, jnp.pi / num_views)
 
     def fdk_recon(self, sinogram, filter_name="ramp", view_batch_size=DIRECT_RECON_VIEW_BATCH_SIZE):
         """
