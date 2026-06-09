@@ -1,0 +1,7 @@
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:260: UserWarning: MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.
+  warnings.warn('MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.')
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:269: UserWarning: CPU memory may be insufficient for this problem.  This may lead to a fatal error.
+  warnings.warn('CPU memory may be insufficient for this problem.  This may lead to a fatal error.')
+sinogram shape: (31232, 512, 512)
+
+Process finished with exit code 137 (interrupted by signal 9:SIGKILL)

@@ -1,0 +1,90 @@
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:269: UserWarning: CPU memory may be insufficient for this problem.  This may lead to a fatal error.
+  warnings.warn('CPU memory may be insufficient for this problem.  This may lead to a fatal error.')
+sinogram shape: (512, 512, 8192)
+W0608 12:04:44.788238 1204199 bfc_allocator.cc:311] Allocator (GPU_0_bfc) ran out of memory trying to allocate 23.44GiB with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+E0608 12:04:44.788292 1204199 cuda_fft.cc:272] Failed to allocate work area.
+E0608 12:04:44.788295 1204199 cuda_fft.cc:323] Initialize Params: rank: 1 elem_count: 24574 input_embed: 24574 input_stride: 1 input_distance: 24574 output_embed: 12288 output_stride: 1 output_distance: 12288 batch_count: 51200
+E0608 12:04:44.788301 1204199 cuda_fft.cc:332] Failed to initialize batched cufft plan with customized allocator: Out of memory while trying to allocate 23.44GiB.
+E0608 12:04:44.789286 1204199 status_macros.cc:58] INTERNAL: RET_CHECK failure (external/xla/xla/backends/gpu/runtime/fft_thunk.cc:199) fft_plan != nullptr Failed to create cuFFT batched plan with scratch allocator
+*** Begin stack trace ***
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	PyObject_Vectorcall
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+	_PyObject_FastCallDictTstate
+	_PyObject_Call_Prepend
+
+	PyObject_Call
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+	PyObject_Call
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+	PyObject_Vectorcall
+
+
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+
+
+	PyObject_Call
+	_PyEval_EvalFrameDefault
+
+
+	PyObject_Call
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+	_PyEval_EvalFrameDefault
+	_PyFunction_Vectorcall
+	PyObject_Call
+	_PyEval_EvalFrameDefault
+
+	PyEval_EvalCode
+
+
+
+	_PyRun_SimpleFileObject
+	_PyRun_AnyFileObject
+	Py_RunMain
+	Py_BytesMain
+
+	__libc_start_main
+
+*** End stack trace ***
+
+Traceback (most recent call last):
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter/fdk_filter.py", line 67, in <module>
+    elapsed_time, peak_bytes = fdk((num_views, num_det_rows, num_det_channels))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter/fdk_filter.py", line 32, in fdk
+    fdk_model.fdk_filter(sinogram)
+  File "/home/ncardel/repos/mbirjax/mbirjax/cone_beam.py", line 918, in fdk_filter
+    filtered_sinogram_batch.block_until_ready()
+jax.errors.JaxRuntimeError: INTERNAL: RET_CHECK failure (external/xla/xla/backends/gpu/runtime/fft_thunk.cc:199) fft_plan != nullptr Failed to create cuFFT batched plan with scratch allocator
+
+Process finished with exit code 1

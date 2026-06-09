@@ -1,0 +1,47 @@
+
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:260: UserWarning: MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.
+  warnings.warn('MBIRJAX is installed with cuda, but there is not enough GPU memory to use cuda. This may lead to a fatal error.')
+/home/ncardel/repos/mbirjax/mbirjax/tomography_model.py:269: UserWarning: CPU memory may be insufficient for this problem.  This may lead to a fatal error.
+  warnings.warn('CPU memory may be insufficient for this problem.  This may lead to a fatal error.')
+sinogram shape: (512, 32768, 512)
+W0608 12:00:40.268361 1192328 bfc_allocator.cc:502] Allocator (GPU_0_bfc) ran out of memory trying to allocate 32.00GiB (rounded to 34359738368)requested by op
+If the cause is memory fragmentation maybe the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' will improve the situation.
+Current allocation summary follows.
+Current allocation summary follows.
+W0608 12:00:40.268484 1192328 bfc_allocator.cc:513] *________________________________________________***************************************************
+Traceback (most recent call last):
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter/fdk_filter.py", line 73, in <module>
+    raise e
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter/fdk_filter.py", line 67, in <module>
+    elapsed_time, peak_bytes = fdk((num_views, num_det_rows, num_det_channels))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/repos/mbirjax/experiments/fdk-filter/fdk_filter.py", line 32, in fdk
+    fdk_model.fdk_filter(sinogram)
+  File "/home/ncardel/repos/mbirjax/mbirjax/cone_beam.py", line 894, in fdk_filter
+    weighted_sinogram = jax.device_put(sinogram * weight_map[None, :, :], self.sinogram_device)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/api.py", line 2732, in device_put
+    out_flat = dispatch._batched_device_put_impl(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/dispatch.py", line 602, in _batched_device_put_impl
+Out of memory for shape (512, 32768, 512)
+    y = _device_put_impl(x, device=device, src=src, copy=cp, aval=aval)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/dispatch.py", line 582, in _device_put_impl
+    return _device_put_sharding_impl(x, aval, device, copy)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/dispatch.py", line 536, in _device_put_sharding_impl
+    return pxla.batched_device_put(aval, sharding, shards, devices)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/interpreters/pxla.py", line 248, in batched_device_put
+    return xc.batched_device_put(aval, sharding, xs, list(devices), committed,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/profiler.py", line 384, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ncardel/.conda/envs/mbirjax/lib/python3.11/site-packages/jax/_src/array.py", line 641, in _value
+    npy_value, did_copy = self._single_device_array_to_np_array_did_copy()
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+jax.errors.JaxRuntimeError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 32.00GiB.
+
+Process finished with exit code 1
