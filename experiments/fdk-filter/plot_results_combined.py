@@ -1,9 +1,9 @@
 import csv
 import matplotlib.pyplot as plt
 
-def load_data(filter_fn):
+def load_data(path, filter_fn):
     sino_gb, time, gb = [], [], []
-    with open('logs/fdk_filter_results.csv') as f:
+    with open(path) as f:
         reader = csv.DictReader(f)
         for row in reader:
             v, r, c = int(row['views']), int(row['rows']), int(row['channels'])
@@ -15,10 +15,20 @@ def load_data(filter_fn):
     sino_gb, time, gb = zip(*paired)
     return sino_gb, time, gb
 
+sources = [
+    ('old', 'logs/fdk_filter_results.csv'),
+    ('new', '../fdk-filter-new/logs/fdk_filter_results.csv'),
+]
+series = [
+    ('dynamic views',    lambda v, r, c: r == 512 and c == 512),
+    ('dynamic rows',     lambda v, r, c: v == 512 and c == 512),
+    ('dynamic channels', lambda v, r, c: v == 512 and r == 512),
+]
+
 datasets = [
-    ('dynamic views',    load_data(lambda v, r, c: r == 512 and c == 512)),
-    ('dynamic rows',     load_data(lambda v, r, c: v == 512 and c == 512)),
-    ('dynamic channels', load_data(lambda v, r, c: v == 512 and r == 512)),
+    (f'{name} ({tag})', load_data(path, filter_fn))
+    for name, filter_fn in series
+    for tag, path in sources
 ]
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
@@ -36,7 +46,7 @@ ax1.grid(True, alpha=0.3)
 ax2.set_xlabel('Sinogram Size (GB)')
 ax2.set_ylabel('GB')
 ax2.set_title('GB vs Sinogram Size')
-ax2.legend(loc='upper left')
+ax2.legend(loc='lower right')
 ax2.grid(True, alpha=0.3)
 
 plt.tight_layout()

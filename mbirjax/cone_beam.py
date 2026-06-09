@@ -1049,6 +1049,7 @@ class ConeBeamModel(TomographyModel):
 
         @jax.jit(donate_argnums=(0,))
         def update_view_batch_in_place(output, update, start):
+            # (start, 0, 0) is the start index in each dimension: write at view `start`, no offset in rows or channels
             return jax.lax.dynamic_update_slice(output, update, (start, 0, 0))
 
         # Initialize the memory for the filtered sinogram, this will be updated in place
@@ -1064,6 +1065,7 @@ class ConeBeamModel(TomographyModel):
             # pad view batch if there are not enough views
             num_view_in_batch = end - start
             if num_view_in_batch < view_batch_size:
+                # one (before, after) pad pair per dimension: pad only the views axis at the end to fill the batch, leaving rows and channels unchanged
                 next_view_batch = jnp.pad(next_view_batch, ((0, view_batch_size - num_view_in_batch), (0, 0), (0, 0)))
 
             # perform fdk filtering
