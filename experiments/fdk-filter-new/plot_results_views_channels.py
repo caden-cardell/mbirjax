@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 rows, time, gb = [], [], []
 
-with open('output/fdk_filter_results.csv') as f:
+with open('logs/fdk_filter_results.csv') as f:
     reader = csv.DictReader(f)
     for row in reader:
         if int(row['views']) == 512 and int(row['channels']) == 512:
