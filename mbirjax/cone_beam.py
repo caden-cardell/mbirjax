@@ -1065,8 +1065,10 @@ class ConeBeamModel(TomographyModel):
             # pad view batch if there are not enough views
             num_view_in_batch = end - start
             if num_view_in_batch < view_batch_size:
-                # one (before, after) pad pair per dimension: pad only the views axis at the end to fill the batch, leaving rows and channels unchanged
-                next_view_batch = jnp.pad(next_view_batch, ((0, view_batch_size - num_view_in_batch), (0, 0), (0, 0)))
+                # one (before, after) pad pair per dimension: pad only the views axis at the end to fill the batch,
+                # leaving rows and channels unchanged
+                next_view_batch = jnp.pad(next_view_batch,
+                                          ((0, view_batch_size - num_view_in_batch), (0, 0), (0, 0)))
 
             # perform fdk filtering
             filtered_view_batch = filter_view_batch(next_view_batch)
