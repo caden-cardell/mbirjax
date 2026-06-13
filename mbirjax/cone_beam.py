@@ -1048,9 +1048,11 @@ class ConeBeamModel(TomographyModel):
             return jax.lax.map(apply_weight_map_and_convolve_with_filter, view_batch, batch_size=view_batch_size)
 
         @jax.jit(donate_argnums=(0,))
-        def update_view_batch_in_place(sinogram_being_updated, view_batch_to_update, start):
-            # (start, 0, 0) is the start index in each dimension: write at view `start`, no offset in rows or channels
-            return jax.lax.dynamic_update_slice(sinogram_being_updated, view_batch_to_update, (start, 0, 0))
+        def update_view_batch_in_place(sinogram_being_updated, view_batch_to_update, view_batch_start_index):
+            # (view_batch_start_index, 0, 0) is the start index in each dimension:
+            # write at view `view_batch_start_index`, no offset in rows or channels
+            return jax.lax.dynamic_update_slice(sinogram_being_updated, view_batch_to_update,
+                                                (view_batch_start_index, 0, 0))
 
         # Initialize the memory for the filtered sinogram, this will be updated in place
         filtered_sinogram = jax.device_put(np.zeros(sinogram.shape, dtype=np.float32), self.sinogram_device)
@@ -1073,7 +1075,6 @@ class ConeBeamModel(TomographyModel):
             # perform fdk filtering
             filtered_view_batch = filter_view_batch(next_view_batch)
             filtered_view_batch.block_until_ready()
-            del next_view_batch
 
             # remove padding if needed
             if num_view_in_batch != view_batch_size:
