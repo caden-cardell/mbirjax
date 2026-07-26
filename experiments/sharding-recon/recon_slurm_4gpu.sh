@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-#SBATCH --job-name=recon_2gpu
+#SBATCH --job-name=recon_4gpu
 #SBATCH -A bouman -p ai -q normal
 #SBATCH -t 03:00:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=28 --gpus-per-node=2
+#SBATCH --ntasks=56 --gpus-per-node=4
 #SBATCH --array=0-18
 #SBATCH --output="/home/ncardel/repos/mbirjax/experiments/sharding-recon/logs/slurm-%A_%a.out"
 #SBATCH --error="/home/ncardel/repos/mbirjax/experiments/sharding-recon/logs/slurm-%A_%a.err"

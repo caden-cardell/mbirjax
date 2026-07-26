@@ -2,25 +2,29 @@
 
 #SBATCH --job-name=recon_1gpu
 #SBATCH -A bouman -p ai -q normal
-#SBATCH -t 04:00:00
+#SBATCH -t 03:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=14 --gpus-per-node=1
-#SBATCH --array=0-7
-#SBATCH --output="/home/ncardel/repos/mbirjax/experiments/sharding/logs/slurm-%A_%a.out"
-#SBATCH --error="/home/ncardel/repos/mbirjax/experiments/sharding/logs/slurm-%A_%a.err"
+#SBATCH --array=0-18
+#SBATCH --output="/home/ncardel/repos/mbirjax/experiments/sharding-recon/logs/slurm-%A_%a.out"
+#SBATCH --error="/home/ncardel/repos/mbirjax/experiments/sharding-recon/logs/slurm-%A_%a.err"
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=ncardel@purdue.edu
 
+SCRIPT_DIR="/home/ncardel/repos/mbirjax/experiments/sharding-recon"
 NUM_GPUS=$SLURM_GPUS_PER_NODE
 
-SIZES=(128 256 512 1024 1280 1536 1792 2048)
-SIZE=${SIZES[$SLURM_ARRAY_TASK_ID]}
+source "${SCRIPT_DIR}/configs.sh"
+read -r VIEWS ROWS CHANNELS <<< "${CONFIGS[$SLURM_ARRAY_TASK_ID]}"
 
-SCRIPT_DIR="/home/ncardel/repos/mbirjax/experiments/sharding"
 LOG_DIR="${SCRIPT_DIR}/logs"
-exec > "${LOG_DIR}/recon_${SIZE}x${SIZE}x${SIZE}_${NUM_GPUS}gpu.out" \
-     2>"${LOG_DIR}/recon_${SIZE}x${SIZE}x${SIZE}_${NUM_GPUS}gpu.err"
-DATA_OUTPUT_FILEPATH="${SCRIPT_DIR}/recon_time_${SIZE}x${SIZE}x${SIZE}_${NUM_GPUS}gpu.txt"
+RESULTS_DIR="${SCRIPT_DIR}/results"
+mkdir -p "${LOG_DIR}" "${RESULTS_DIR}"
+exec  > "${LOG_DIR}/recon_${VIEWS}x${ROWS}x${CHANNELS}_${NUM_GPUS}gpu.out" \
+     2> "${LOG_DIR}/recon_${VIEWS}x${ROWS}x${CHANNELS}_${NUM_GPUS}gpu.err"
+# One CSV per (gpu-count, shape): concurrent array tasks never touch the same file, and
+# re-submissions on later nights append repeats. plot_results.py globs results/*.csv.
+DATA_OUTPUT_FILEPATH="${RESULTS_DIR}/recon_${NUM_GPUS}gpu_${VIEWS}x${ROWS}x${CHANNELS}.csv"
 
 module purge
 module load proxy
@@ -32,5 +36,6 @@ module load conda
 
 conda activate mbirjax
 
-echo "Running: size=$SIZE, num_gpus=$NUM_GPUS, output=$DATA_OUTPUT_FILEPATH"
-python3 "${SCRIPT_DIR}/recon.py" "$SIZE" "$SIZE" "$SIZE" "$DATA_OUTPUT_FILEPATH"
+export GIT_COMMIT="$(git -C "${SCRIPT_DIR}" rev-parse --short HEAD 2>/dev/null)"
+echo "Running: shape=${VIEWS}x${ROWS}x${CHANNELS}, num_gpus=${NUM_GPUS}, commit=${GIT_COMMIT}, output=${DATA_OUTPUT_FILEPATH}"
+python3 "${SCRIPT_DIR}/recon.py" "$VIEWS" "$ROWS" "$CHANNELS" "$DATA_OUTPUT_FILEPATH"
